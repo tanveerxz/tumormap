@@ -78,25 +78,61 @@ def _compartment_brief(features: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _repair_to_budget(weights: dict[str, int], n_passes: int) -> dict[str, int]:
+    """
+    Rescale the model's relative weighting to hit the budget exactly.
+
+    A 2B model reliably produces a sensible *ratio* but not a set of integers
+    summing to an arbitrary target — it will happily answer 8/6/4 when asked
+    for 24. Treating the answer as weights keeps the model's actual decision
+    (the relative priority between compartments) and fixes only the arithmetic,
+    via largest-remainder apportionment.
+    """
+    total = sum(weights.values())
+    if total <= 0:
+        raise ValueError("weights sum to zero")
+
+    exact = {k: v / total * n_passes for k, v in weights.items()}
+    alloc = {k: int(v) for k, v in exact.items()}
+
+    remaining = n_passes - sum(alloc.values())
+    for key, _ in sorted(exact.items(), key=lambda kv: kv[1] - int(kv[1]), reverse=True):
+        if remaining <= 0:
+            break
+        alloc[key] += 1
+        remaining -= 1
+    return alloc
+
+
 def propose_allocation(features: dict[str, Any], n_passes: int, model: str = DEFAULT_MODEL) -> dict[str, Any]:
     """
     Ask Gemma how to spend the pass budget across compartments.
 
-    The model's answer is parsed and validated: ids must be known and counts
-    must sum to the budget. Anything else falls back to apportionment by volume
-    share, and the response says which happened.
+    The reply is parsed as a *weighting* rather than a literal pass count: ids
+    must be known and non-negative, and the ratio is then rescaled to the exact
+    budget. Only a malformed or empty answer falls back to volume share, and
+    the response always says which happened.
     """
     ids = [r["id"] for r in features["regions"]]
-    prompt = f"""A tumour segmentation has these compartments:
+    # The objective is stated explicitly. Without it the model reliably
+    # over-weights the necrotic core and scores well below a plain
+    # proportional rule; naming the scoring function is fair, and it is what
+    # a human planner would be told too.
+    prompt = f"""A tumour segmentation has these compartments, with each one's
+share of total tumour volume:
 
 {_compartment_brief(features)}
 
-You have {n_passes} simulated biopsy passes to distribute. The goal is that the
-collected tissue represents the whole tumour, not just its largest or most
-visible compartment.
+You have {n_passes} simulated biopsy passes to distribute across them.
 
-Reply with ONLY a JSON object mapping compartment id to pass count, using the
-ids {ids}. The counts must sum to exactly {n_passes}.
+The result is scored on REPRESENTATIVENESS: how closely the mix of tissue you
+collect matches the tumour's actual volumetric composition. A sample scores
+highest when the proportion of passes spent on each compartment mirrors that
+compartment's share of the volume. Over-weighting any one compartment lowers
+the score, even a clinically interesting one.
+
+Reply with ONLY a JSON object mapping compartment id to a pass count, using the
+ids {ids}. Aim for the counts to sum to about {n_passes}.
 Example: {{"NCR": 4, "ED": 5, "ET": 3}}"""
 
     raw = _generate(prompt, model=model)
@@ -105,13 +141,27 @@ Example: {{"NCR": 4, "ED": 5, "ET": 3}}"""
         if match:
             try:
                 parsed = json.loads(match.group(0))
-                alloc = {k: int(v) for k, v in parsed.items() if k in ids}
-                if alloc and sum(alloc.values()) == n_passes:
+                weights = {
+                    k: int(v) for k, v in parsed.items() if k in ids and int(v) >= 0
+                }
+                if weights and sum(weights.values()) > 0:
+                    # Fill any compartment the model omitted with zero, so a
+                    # deliberate "skip this one" survives the rescale.
+                    for rid in ids:
+                        weights.setdefault(rid, 0)
+
+                    requested = sum(weights.values())
+                    allocation = _repair_to_budget(weights, n_passes)
                     return {
-                        "allocation": alloc,
+                        "allocation": allocation,
+                        "weights": weights,
                         "modelRan": True,
                         "model": model,
                         "source": "gemma",
+                        # Surfaced so the UI never implies the model did the
+                        # arithmetic when it only supplied the ratio.
+                        "rescaled": requested != n_passes,
+                        "requestedTotal": requested,
                         "raw": raw,
                     }
             except (ValueError, TypeError):
