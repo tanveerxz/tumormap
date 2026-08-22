@@ -1,0 +1,7 @@
+nibabel
+numpy
+matplotlib
+fastapi
+uvicorn
+nibabel
+numpy
