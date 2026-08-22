@@ -24,7 +24,7 @@
    - **Region 2: Peritumoral Infiltration / Edema (ED)** — Migrating glioma cells in brain parenchyma (hyperintense on T2/FLAIR).
    - **Region 3: Active Enhancing Tumour Rim (ET)** — Hypervascular, highly proliferating cells with blood-brain barrier breakdown (enhancing on T1+Gd).
 2. **The Sampling Trap**: A stereotactic needle biopsy takes tiny 10–20mm tissue cores. If the neurosurgeon aims for the geometric centroid, **over 70% of the sample is necrotic debris**, causing false-negative next-generation sequencing (NGS) and failed targeted therapies.
-3. **TumourMap Solution**: TumourMap simulates thousands of 3D virtual needle biopsies across multi-parametric MRI (T1, T2, FLAIR, T1+contrast), quantifies heterogeneity capture using **Shannon Diversity ($H'$) and Pielou's Evenness ($J'$)**, and leverages **local Gemma** to audit spatial blind spots and formulate multi-target stereotactic protocols.
+3. **TumourMap Solution**: TumourMap creates a computational environment for evaluating thousands of simulated 3D sampling trajectories across multi-parametric MRI representations (T1, T2, FLAIR, and T1+contrast). It quantifies how well different strategies capture heterogeneous tumour compartments using **Shannon Diversity (H′)** and **Pielou's Evenness (J′)**. Local **Gemma** is used to analyse structured spatial information and provide reasoning over potential sampling strategies. The system is designed as a **research prototype** and does not provide patient-specific clinical recommendations.
 
 ---
 
