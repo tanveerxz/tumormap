@@ -1,150 +1,173 @@
 /**
- * Shared contract between the Next.js client and the Python server.
+ * Contract with the Python server (`backend/api.py`).
  *
- * Keep this file in sync with the server's Pydantic models. Field names are
- * camelCase on the wire; if the server prefers snake_case, alias on the Python
- * side (`Field(alias=...)` + `populate_by_name=True`) rather than changing here.
- *
- * NOTHING in this pipeline is clinical. Every map is synthetic and every metric
- * describes a simulation, not a patient.
+ * IMPORTANT — this is not synthetic data. Everything the server returns is
+ * derived from real, de-identified research imaging (OpenNeuro, subject
+ * sub-NSK46). The UI must describe it as such: de-identified research data
+ * used for a methods demonstration, never as a clinical tool and never as
+ * simulated phantom data.
  */
 
-export type RegionId = "A" | "B" | "C";
+/** Compartment ids from the segmentation's 1/2/3 labels. */
+export type CompartmentId = "NCR" | "ED" | "ET";
 
-/** Normalised coordinates in [0, 1] — origin top-left, matching image space. */
-export interface Point {
-  x: number;
-  y: number;
-}
-
-export type RegionCharacter = "high-density" | "low-density" | "heterogeneous";
-
-export interface RegionMeta {
-  id: RegionId;
-  label: string;
-  character: RegionCharacter;
-  /** Voxel count belonging to this region. */
+export interface Compartment {
+  label: number;
+  id: CompartmentId;
+  name: string;
+  short: string;
+  note: string;
   voxels: number;
-  /** Share of total tumour volume, 0..1. Shares across regions sum to 1. */
+  volumeCm3: number;
+  /** Share of total tumour volume, 0..1. */
   trueShare: number;
-  centroid: Point;
+  centroid: [number, number, number];
 }
 
-/**
- * A synthetic MRI slice plus its ground-truth region segmentation.
- *
- * `labels` and `intensity` are row-major, length `width * height`. For the
- * hackathon they travel as plain JSON arrays; if payload size becomes a problem
- * the server can switch to base64 PNG/npy and the client can decode — only the
- * two array fields would change shape.
- */
-export interface TumourMap {
-  seed: number;
-  width: number;
-  height: number;
-  /** 0 = not tumour, 1..3 = region A..C. */
-  labels: number[];
-  /** MRI-like grayscale, 0..1. 0 outside the head. */
-  intensity: number[];
-  regions: RegionMeta[];
-  /** Total tumour voxels — the denominator behind every `trueShare`. */
+export interface CaseFeatures {
+  subjectId: string;
+  space: string;
+  shape: [number, number, number];
+  voxelSizeMm: [number, number, number];
   tumourVoxels: number;
+  tumourVolumeCm3: number;
+  centroid: [number, number, number];
+  regions: Compartment[];
 }
 
-export type StrategyId = "traditional" | "ai-guided";
+export interface Provenance {
+  source: string;
+  /** Always false — the imaging is real. */
+  synthetic: boolean;
+  maskSpace: string;
+  scanSpace: string;
+  /** False: mask is MNI152, scans are native, no published transform. */
+  registered: boolean;
+  note: string;
+  /** False: the 1/2/3 → NCR/ED/ET mapping is assumed, not confirmed. */
+  labelSemanticsConfirmed: boolean;
+}
 
-export interface BiopsyPath {
+export interface CaseResponse {
+  features: CaseFeatures;
+  acquisition: {
+    manufacturer?: string;
+    model?: string;
+    fieldStrengthT?: number;
+    sequence?: string;
+  };
+  modalities: string[];
+  provenance: Provenance;
+}
+
+export interface BiopsyCore {
+  voxel: [number, number, number];
+  /** 0 = outside tumour, 1..3 = compartment. */
+  label: number;
+}
+
+export interface BiopsyPass {
   id: number;
-  /** Where the needle enters, outside the head. */
-  entry: Point;
-  /** Where the core is taken. */
-  target: Point;
-  /** Region label of each voxel in the core; 0 entries are non-tumour. */
-  coreLabels: number[];
-  /** True when the core contains at least one tumour voxel. */
+  entry: [number, number, number];
+  target: [number, number, number];
+  cores: BiopsyCore[];
   hit: boolean;
 }
 
-export interface SamplingMetrics {
+export interface StrategyResult {
+  name: string;
+  approach: string;
   passes: number;
   hits: number;
-  /** hits / passes, 0..1. */
   hitRate: number;
-  /**
-   * 1 − total variation distance between the sampled region distribution and
-   * the true one, 0..1. 1.0 means the sample mirrors the tumour's composition;
-   * 0 means it missed the tumour entirely. Concentrating every pass in one
-   * region caps this at that region's true share.
-   */
-  representativeCoverage: number;
-  /** Share of sampled tumour voxels drawn from each region, 0..1. */
-  sampledShare: Record<RegionId, number>;
-  /** How many distinct regions the sample touched at all (0..3). */
+  coresSampled: number;
+  /** Shannon diversity H'. */
+  shannon: number;
+  /** Pielou's evenness J' — H' / ln(3). Is the sample balanced? */
+  evenness: number;
+  /** 1 − total variation distance. Does the sample match THIS tumour? */
+  representativeness: number;
   regionsTouched: number;
+  sampledShare: Record<CompartmentId, number>;
+  sampledCounts: Record<CompartmentId, number>;
+  biopsyPasses: BiopsyPass[];
 }
 
-export interface StrategyResult {
-  strategy: StrategyId;
-  label: string;
-  /** One-line description of how targets were chosen. */
-  approach: string;
-  paths: BiopsyPath[];
-  metrics: SamplingMetrics;
+/** How the pass budget was split, and whether Gemma actually decided it. */
+export interface StrategyProposal {
+  allocation: Record<string, number>;
+  /** False means the model did not run and this is the deterministic fallback. */
+  modelRan: boolean;
+  model: string | null;
+  source: string;
+  reason?: string;
+  raw?: string;
 }
 
-/** Structured output of the local model — the raw slice never leaves the box. */
-export interface GemmaAnalysis {
+export interface Narrative {
+  text: string;
+  /** False means deterministic text, not model output. Never hide this. */
+  modelRan: boolean;
   model: string;
-  /** Always true: this stage is the privacy boundary. */
-  runsLocally: true;
-  summary: string;
-  regions: Array<{
-    id: RegionId;
-    label: string;
-    density: string;
-    note: string;
-  }>;
-  /** 0..1 — how unevenly tumour volume is split across regions. */
-  heterogeneityIndex: number;
+  reason?: string;
 }
 
-/** Cloud reasoning over the structured summary only — never over the image. */
-export interface GeminiStrategy {
-  model: string;
-  rationale: string;
-  /** How many passes to spend on each region. */
-  allocation: Array<{ region: RegionId; passes: number }>;
-  /** Approach corridor the needle may enter through, in degrees. */
-  entryArcDegrees: [number, number];
-}
-
-export interface RunResult {
-  map: TumourMap;
-  analysis: GemmaAnalysis;
-  strategy: GeminiStrategy;
-  results: Record<StrategyId, StrategyResult>;
-  /** AI-guided minus traditional, in absolute proportion (not percent). */
+export interface RunResponse {
+  features: CaseFeatures;
+  strategy: StrategyProposal;
+  results: {
+    baseline: StrategyResult;
+    stratified: StrategyResult;
+  };
   delta: {
     hitRate: number;
-    representativeCoverage: number;
+    evenness: number;
+    representativeness: number;
   };
-  /** Where the numbers came from, so the UI can be honest about it. */
-  source: "local-simulation" | "server";
+  narrative: Narrative | null;
+  source: "server";
 }
 
-export interface RunRequest {
-  seed: number;
-  /** Biopsy passes per strategy. */
-  passes: number;
-  gridSize?: number;
+export interface PointCloudRegion {
+  label: number;
+  id: CompartmentId;
+  /** Normalised to a unit cube centred on the origin. */
+  points: Array<[number, number, number]>;
 }
 
-/** Stages the UI walks through while a run is in flight. */
-export type PipelineStage =
-  | "idle"
-  | "synthesising"
+export interface PointCloud {
+  space: string;
+  regions: PointCloudRegion[];
+}
+
+export interface MriSlice {
+  modality: string;
+  plane: string;
+  sliceIndex: number;
+  space: string;
+  /** Always false — never overlay the mask on this. */
+  registeredToMask: boolean;
+  width: number;
+  height: number;
+  /** Row-major grayscale bytes, length width*height. */
+  pixels: number[];
+}
+
+export interface HealthResponse {
+  status: string;
+  gemma: {
+    model: string;
+    available: boolean;
+    reason?: string | null;
+  };
+}
+
+/** Stages the guided walkthrough steps through. */
+export type StepId =
+  | "case"
+  | "compartments"
+  | "baseline"
+  | "problem"
   | "gemma"
-  | "gemini"
-  | "simulating"
-  | "comparing"
-  | "done";
+  | "stratified"
+  | "verdict";

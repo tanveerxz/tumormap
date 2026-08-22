@@ -1,18 +1,22 @@
 /**
- * Client for the Python server, with a local fallback.
+ * Client for the Python server.
  *
- * Set NEXT_PUBLIC_API_URL to point at the backend (see .env.local.example).
- * With it unset — or if the request fails — the run is computed in-browser by
- * `lib/pipeline.ts` and the UI labels itself as running on local simulation.
- * That keeps the interface demoable while the server is still being written.
+ * There is no local fallback any more. The data is real imaging that lives
+ * server-side, so if the server is down the honest thing is to say so rather
+ * than quietly substitute made-up numbers.
  */
 
-import { runLocally } from "./pipeline";
-import type { RunRequest, RunResult } from "./types";
+import type {
+  CaseResponse,
+  HealthResponse,
+  MriSlice,
+  PointCloud,
+  RunResponse,
+} from "./types";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-
-export const hasConfiguredServer = API_BASE.length > 0;
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(
@@ -24,46 +28,37 @@ export class ApiError extends Error {
   }
 }
 
-/** POST /api/run — see `types.ts` for the request and response shapes. */
-export async function runPipeline(
-  request: RunRequest,
-  signal?: AbortSignal,
-): Promise<{ result: RunResult; fellBack: boolean; reason?: string }> {
-  if (!hasConfiguredServer) {
-    return { result: runLocally(request), fellBack: false };
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { signal });
+  if (!response.ok) {
+    throw new ApiError(`${path} returned ${response.status}`, response.status);
   }
-
-  try {
-    const response = await fetch(`${API_BASE}/api/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-      signal,
-    });
-
-    if (!response.ok) {
-      throw new ApiError(`Server returned ${response.status}`, response.status);
-    }
-
-    const result = (await response.json()) as RunResult;
-    return { result: { ...result, source: "server" }, fellBack: false };
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    return {
-      result: runLocally(request),
-      fellBack: true,
-      reason: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
+  return (await response.json()) as T;
 }
 
-/** GET /health — used only to colour the connection badge. */
-export async function checkHealth(signal?: AbortSignal): Promise<boolean> {
-  if (!hasConfiguredServer) return false;
-  try {
-    const response = await fetch(`${API_BASE}/health`, { signal });
-    return response.ok;
-  } catch {
-    return false;
+export const fetchHealth = (signal?: AbortSignal) => get<HealthResponse>("/health", signal);
+
+export const fetchCase = (signal?: AbortSignal) => get<CaseResponse>("/api/case", signal);
+
+export const fetchPointCloud = (maxPerRegion = 1400, signal?: AbortSignal) =>
+  get<PointCloud>(`/api/pointcloud?maxPerRegion=${maxPerRegion}`, signal);
+
+export const fetchSlice = (modality = "T1_post", plane = "axial", signal?: AbortSignal) =>
+  get<MriSlice>(`/api/slice?modality=${modality}&plane=${plane}`, signal);
+
+export async function runSimulation(
+  passes: number,
+  useGemma = true,
+  signal?: AbortSignal,
+): Promise<RunResponse> {
+  const response = await fetch(`${API_BASE}/api/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passes, useGemma }),
+    signal,
+  });
+  if (!response.ok) {
+    throw new ApiError(`/api/run returned ${response.status}`, response.status);
   }
+  return (await response.json()) as RunResponse;
 }

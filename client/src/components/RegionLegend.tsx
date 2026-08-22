@@ -1,21 +1,36 @@
-import { REGION_VAR_BY_ID as REGION_VAR } from "@/lib/regionColors";
-import { REGION_IDS, REGION_PROFILE } from "@/lib/tumour";
+import { COMPARTMENT_ORDER, REGION_VAR_BY_ID } from "@/lib/regionColors";
+import type { CaseFeatures } from "@/lib/types";
 
-/** Always present: with three regions on screen, identity is never colour-alone. */
-export default function RegionLegend({ showReference = false }: { showReference?: boolean }) {
+interface Props {
+  features?: CaseFeatures;
+  showReference?: boolean;
+  showShare?: boolean;
+}
+
+/** Always present: with three compartments on screen, identity is never colour-alone. */
+export default function RegionLegend({ features, showReference, showShare }: Props) {
+  const items =
+    features?.regions.map((r) => ({
+      id: r.id,
+      label: r.short,
+      share: r.trueShare,
+    })) ?? COMPARTMENT_ORDER.map((id) => ({ id, label: id, share: undefined }));
+
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-      {REGION_IDS.map((id) => (
-        <span key={id} className="flex items-center gap-1.5 text-ink-secondary">
+      {items.map((item) => (
+        <span key={item.id} className="flex items-center gap-1.5 text-ink-secondary">
           <span
             aria-hidden
-            className="inline-block h-2.5 w-2.5 rounded-xs"
-            style={{ background: REGION_VAR[id] }}
+            className="inline-block h-2.5 w-2.5 shrink-0 rounded-xs"
+            style={{ background: REGION_VAR_BY_ID[item.id] }}
           />
-          {REGION_PROFILE[id].label}
-          <span className="text-ink-muted">
-            · {REGION_PROFILE[id].character.replace("-", " ")}
-          </span>
+          {item.label}
+          {showShare && item.share !== undefined && (
+            <span className="mono tabular text-ink-muted">
+              {(item.share * 100).toFixed(0)}%
+            </span>
+          )}
         </span>
       ))}
       {showReference && (

@@ -2,370 +2,458 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AnimatedNumber from "@/components/AnimatedNumber";
-import PipelineStepper from "@/components/PipelineStepper";
-import Premise from "@/components/Premise";
-import PrivacyBoundary from "@/components/PrivacyBoundary";
+import MriPanel from "@/components/MriPanel";
+import ProvenanceNotice from "@/components/ProvenanceNotice";
 import RegionBalance from "@/components/RegionBalance";
 import RegionLegend from "@/components/RegionLegend";
-import RegionTable from "@/components/RegionTable";
-import ResearchNotice from "@/components/ResearchNotice";
 import StatTile from "@/components/StatTile";
 import ThemeToggle from "@/components/ThemeToggle";
-import TumourSlice from "@/components/TumourSlice";
-import { hasConfiguredServer, runPipeline } from "@/lib/api";
+import TumourVolume3D from "@/components/TumourVolume3D";
+import { fetchCase, fetchHealth, fetchPointCloud, runSimulation } from "@/lib/api";
 import { pct, pp } from "@/lib/format";
-import type { PipelineStage, RunResult, StrategyId } from "@/lib/types";
+import { STEPS } from "@/lib/steps";
 import { useTheme } from "@/lib/useTheme";
-
-const STAGE_WALK: PipelineStage[] = [
-  "synthesising",
-  "gemma",
-  "gemini",
-  "simulating",
-  "comparing",
-];
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const PANELS: Array<{ id: StrategyId; caption: string }> = [
-  { id: "traditional", caption: "Baseline — aim at the mass you can see" },
-  { id: "ai-guided", caption: "Proposed — spread across the territories" },
-];
+import type {
+  CaseResponse,
+  HealthResponse,
+  PointCloud,
+  RunResponse,
+} from "@/lib/types";
 
 export default function Home() {
   const [theme, setTheme] = useTheme();
-  const [seed, setSeed] = useState(20260822);
-  const [passes, setPasses] = useState(120);
-  const [run, setRun] = useState<RunResult | null>(null);
-  const [stage, setStage] = useState<PipelineStage>("idle");
-  const [pending, setPending] = useState(true);
-  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
+  const [passes, setPasses] = useState(24);
 
-  const execute = useCallback(async (nextSeed: number, nextPasses: number) => {
-    setPending(true);
-    for (const step of STAGE_WALK) {
-      setStage(step);
-      await sleep(110);
-    }
-    const { result, fellBack, reason } = await runPipeline({
-      seed: nextSeed,
-      passes: nextPasses,
-    });
-    setRun(result);
-    setFallbackReason(fellBack ? (reason ?? "server unreachable") : null);
-    setStage("done");
-    setPending(false);
+  const [caseData, setCaseData] = useState<CaseResponse | null>(null);
+  const [cloud, setCloud] = useState<PointCloud | null>(null);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [run, setRun] = useState<RunResponse | null>(null);
+
+  const [pending, setPending] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const current = STEPS[step];
+
+  // Load the case, geometry, and model status once.
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([
+      fetchCase(controller.signal),
+      fetchPointCloud(1400, controller.signal),
+      fetchHealth(controller.signal).catch(() => null),
+    ])
+      .then(([c, pc, h]) => {
+        setCaseData(c);
+        setCloud(pc);
+        setHealth(h);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(
+          err instanceof Error
+            ? `${err.message} — is the Python server running on :8000?`
+            : "Failed to reach the server",
+        );
+      });
+    return () => controller.abort();
   }, []);
 
-  // Debounced so dragging the pass slider does not queue a run per frame.
-  useEffect(() => {
-    const timer = setTimeout(() => void execute(seed, passes), 200);
-    return () => clearTimeout(timer);
-  }, [seed, passes, execute]);
+  const execute = useCallback(async (nextPasses: number) => {
+    setPending(true);
+    try {
+      setRun(await runSimulation(nextPasses));
+      setError(null);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Simulation failed");
+    } finally {
+      setPending(false);
+    }
+  }, []);
 
-  const traditional = run?.results.traditional;
-  const guided = run?.results["ai-guided"];
+  useEffect(() => {
+    const timer = setTimeout(() => void execute(passes), 200);
+    return () => clearTimeout(timer);
+  }, [passes, execute]);
+
+  // Arrow keys drive the walkthrough — one hand on the keyboard while recording.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement) return;
+      if (event.key === "ArrowRight")
+        setStep((s) => Math.min(s + 1, STEPS.length - 1));
+      if (event.key === "ArrowLeft") setStep((s) => Math.max(s - 1, 0));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const baseline = run?.results.baseline;
+  const stratified = run?.results.stratified;
+  const overlayPasses =
+    current.overlay === "baseline"
+      ? baseline?.biopsyPasses
+      : current.overlay === "stratified"
+        ? stratified?.biopsyPasses
+        : undefined;
+
+  const modelRan = run?.strategy.modelRan ?? false;
 
   return (
     <>
-      {/* Floating chrome: content scrolls underneath, and the edge fades rather
-          than meeting a hard 1px divider. */}
       <nav className="scroll-edge glass sticky top-0 z-30">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <span className="label-mono text-ink-primary">Sampling&nbsp;Simulator</span>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <span className="label-mono text-ink-primary">TumourMap</span>
           <div className="flex items-center gap-2">
             <span
               className="label-mono flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-ink-secondary ring-1 ring-hairline"
-              title={
-                hasConfiguredServer
-                  ? "NEXT_PUBLIC_API_URL is set"
-                  : "Set NEXT_PUBLIC_API_URL to use the Python server"
-              }
+              title={health?.gemma.reason ?? undefined}
             >
               <span
                 aria-hidden
                 className="inline-block h-1.5 w-1.5 rounded-full"
                 style={{
-                  background: run?.source === "server" ? "var(--brand)" : "var(--accent)",
+                  background: health?.gemma.available
+                    ? "var(--delta-good)"
+                    : "var(--accent)",
                 }}
               />
-              {run?.source === "server" ? "Python server" : "Local sim"}
+              {health?.gemma.available ? "Gemma local" : "Gemma offline"}
             </span>
             <ThemeToggle theme={theme} onChange={setTheme} />
           </div>
         </div>
       </nav>
 
-      <div className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
-        <header className="materialize mb-8 max-w-3xl">
+      <div className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6">
+        <header className="materialize mb-6 max-w-3xl">
           <p className="label-mono mb-3 text-brand">
-            Intratumour heterogeneity · sampling simulation
+            Intratumour heterogeneity · virtual biopsy sampling
           </p>
           <h1 className="display-1 text-ink-primary">Where should a biopsy be taken?</h1>
           <p className="body-text mt-4 text-ink-secondary">
-            A tumour is not uniform, and a needle samples a tiny fraction of it. This
-            simulation asks whether the <em>placement</em> of those passes changes how
-            well the collected tissue represents the whole mass — and whether a model
-            reasoning over the tumour&apos;s structure can place them better than
-            aiming at the obvious target.
+            A needle samples a fraction of a percent of a tumour. This walks through
+            whether the <em>placement</em> of those passes decides if the tissue that
+            reaches the lab actually represents the mass — on real imaging, with a
+            local model doing the replanning.
           </p>
         </header>
 
-        <div className="mb-10 space-y-3">
-          <ResearchNotice />
-          {fallbackReason && (
-            <div className="panel caption rounded-2xl p-4 text-ink-secondary ring-1 ring-hairline">
-              <strong className="font-semibold text-ink-primary">Server unavailable</strong>{" "}
-              — fell back to the in-browser simulation ({fallbackReason}).
-            </div>
-          )}
+        {error && (
+          <div className="panel caption mb-6 rounded-2xl p-4 ring-1 ring-hairline">
+            <strong className="font-semibold text-ink-primary">Server unreachable</strong>{" "}
+            <span className="text-ink-secondary">{error}</span>
+            <p className="mono mt-2 text-xs text-ink-muted">
+              uvicorn backend.api:app --port 8000
+            </p>
+          </div>
+        )}
+
+        <div className="mb-6">
+          <ProvenanceNotice provenance={caseData?.provenance} />
         </div>
 
-        <Premise />
+        {/* ---- Walkthrough control: the spine of the demo recording ---- */}
+        <div className="glass-strong sticky top-14 z-20 mb-6 rounded-2xl p-4 ring-1 ring-hairline">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStep((s) => Math.max(s - 1, 0))}
+                disabled={step === 0}
+                className="press rounded-xl bg-surface-2 px-3 py-2 text-sm text-ink-secondary ring-1 ring-hairline hover:text-ink-primary disabled:opacity-40"
+                aria-label="Previous step"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep((s) => Math.min(s + 1, STEPS.length - 1))}
+                disabled={step === STEPS.length - 1}
+                className="press rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
 
-        {/* One control row, above everything it scopes, and it stays reachable. */}
-        <div className="glass-strong sticky top-14 z-20 mb-8 flex flex-wrap items-end gap-x-8 gap-y-4 rounded-2xl p-4 ring-1 ring-hairline">
-          <div className="min-w-56 flex-1">
-            <label htmlFor="passes" className="label-mono mb-2.5 block text-ink-muted">
-              Biopsy passes per strategy
-            </label>
+            {/* Step pips: position in the story, always visible on camera. */}
+            <ol className="flex flex-1 items-center gap-1.5" aria-label="Walkthrough steps">
+              {STEPS.map((s, i) => (
+                <li key={s.id} className="flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setStep(i)}
+                    title={s.title}
+                    aria-current={i === step ? "step" : undefined}
+                    className="block h-1.5 w-full rounded-full transition-colors"
+                    style={{
+                      background:
+                        i === step
+                          ? "var(--brand)"
+                          : i < step
+                            ? "var(--ink-muted)"
+                            : "var(--surface-2)",
+                    }}
+                  >
+                    <span className="sr-only">{s.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+
             <div className="flex items-center gap-3">
+              <label htmlFor="passes" className="label-mono text-ink-muted">
+                Passes
+              </label>
               <input
                 id="passes"
                 type="range"
-                min={20}
-                max={300}
-                step={10}
+                min={6}
+                max={96}
+                step={6}
                 value={passes}
-                onChange={(event) => setPasses(Number(event.target.value))}
-                className="h-1 flex-1 accent-brand"
+                onChange={(e) => setPasses(Number(e.target.value))}
+                className="h-1 w-28 accent-brand"
               />
-              <span className="mono tabular w-9 text-right text-sm text-ink-primary">
+              <span className="mono tabular w-7 text-right text-sm text-ink-primary">
                 {passes}
               </span>
             </div>
           </div>
-
-          <div>
-            <span className="label-mono mb-2.5 block text-ink-muted">Slice seed</span>
-            <span className="mono tabular text-sm text-ink-primary">{seed}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setSeed(Math.floor(Math.random() * 1_000_000))}
-              className="press rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-ink hover:bg-brand-hover"
-            >
-              New slice
-            </button>
-            <button
-              type="button"
-              onClick={() => void execute(seed, passes)}
-              className="press rounded-xl bg-surface-2 px-4 py-2 text-sm text-ink-secondary ring-1 ring-hairline hover:text-ink-primary"
-            >
-              Re-run
-            </button>
-          </div>
         </div>
 
-        <section className="mb-10">
-          <h2 className="label-mono mb-4 text-ink-muted">Pipeline</h2>
-          <PipelineStepper stage={stage} />
-        </section>
+        {/* ---- Narration + stage ---- */}
+        <div className="grid gap-5 lg:grid-cols-[22rem_1fr]">
+          <aside className="lg:sticky lg:top-36 lg:self-start">
+            <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
+              <div className="label-mono mb-3 text-brand">
+                Step {current.number} / {STEPS.length.toString().padStart(2, "0")}
+              </div>
+              <h2 className="title-1 mb-3 text-ink-primary">{current.title}</h2>
+              <p className="body-text text-ink-secondary">{current.narration}</p>
 
-        {!run ? (
-          <div className="panel grid h-64 place-items-center rounded-2xl text-sm text-ink-secondary ring-1 ring-hairline">
-            Running simulation…
-          </div>
-        ) : (
-          <>
-            {/* The headline is one number — a hero figure, not a two-bar chart. */}
-            <section className="mb-10 grid gap-4 lg:grid-cols-3" aria-live="polite">
-              <div className="panel relative overflow-hidden rounded-2xl p-6 ring-1 ring-hairline">
-                <span
-                  aria-hidden
-                  className="absolute inset-y-0 left-0 w-1"
-                  style={{ background: "var(--brand)" }}
-                />
-                <div className="label-mono text-ink-muted">Representative coverage</div>
-                <AnimatedNumber
-                  value={run.delta.representativeCoverage}
-                  format={pp}
-                  className="figure-hero mt-3 block text-ink-primary"
-                />
-                {/* Status colour with an icon and a word — never colour alone. */}
-                <div
-                  className="mt-3 flex items-center gap-1.5 text-xs"
-                  style={{ color: "var(--delta-good)" }}
-                >
-                  <span aria-hidden>▲</span>
-                  <span className="font-medium">improvement</span>
+              {current.id === "gemma" && run && (
+                <div className="mt-4 border-t border-grid pt-4">
+                  <div className="label-mono mb-2 flex items-center gap-2 text-ink-muted">
+                    Allocation
+                    <span
+                      className="rounded-full px-2 py-0.5"
+                      style={{
+                        background: modelRan ? "var(--surface-2)" : "transparent",
+                        color: modelRan ? "var(--delta-good)" : "var(--accent)",
+                      }}
+                    >
+                      {modelRan ? "from Gemma" : "fallback"}
+                    </span>
+                  </div>
+                  <ul className="mono space-y-1 text-xs text-ink-secondary">
+                    {Object.entries(run.strategy.allocation).map(([id, count]) => (
+                      <li key={id} className="flex justify-between tabular">
+                        <span>{id}</span>
+                        <span className="text-ink-primary">{count} passes</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!modelRan && (
+                    <p className="caption mt-2.5 text-ink-muted">
+                      Gemma did not run, so this is volume-share apportionment, not a
+                      model decision. {run.strategy.reason}
+                    </p>
+                  )}
                 </div>
-                <p className="caption mt-3 text-ink-secondary">
-                  Change from the traditional strategy to the AI-guided one, on this
-                  simulated slice.
-                </p>
+              )}
+
+              {current.id === "verdict" && run?.narrative && (
+                <div className="mt-4 border-t border-grid pt-4">
+                  <div className="label-mono mb-2 text-ink-muted">
+                    {run.narrative.modelRan ? "Gemma’s reading" : "Deterministic summary"}
+                  </div>
+                  <p className="caption whitespace-pre-line text-ink-secondary">
+                    {run.narrative.text}
+                  </p>
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <main className="min-w-0 space-y-5">
+            {/* Stage: real scans, or the 3D volume with needle tracks. */}
+            {current.stage === "case" ? (
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
+                  <h3 className="title-2 mb-3 text-ink-primary">The scans</h3>
+                  <MriPanel />
+                </div>
+                <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
+                  <h3 className="title-2 mb-3 text-ink-primary">The case</h3>
+                  {caseData && (
+                    <dl className="caption space-y-2.5">
+                      {[
+                        ["Subject", caseData.features.subjectId],
+                        ["Tumour volume", `${caseData.features.tumourVolumeCm3} cm³`],
+                        [
+                          "Segmentation",
+                          `${caseData.features.space} · ${caseData.features.voxelSizeMm.join(" × ")} mm`,
+                        ],
+                        [
+                          "Scanner",
+                          `${caseData.acquisition.manufacturer ?? "—"} ${caseData.acquisition.model ?? ""} · ${caseData.acquisition.fieldStrengthT ?? "?"}T`,
+                        ],
+                        ["Modalities", caseData.modalities.join(", ")],
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex justify-between gap-4">
+                          <dt className="text-ink-muted">{k}</dt>
+                          <dd className="mono text-right text-ink-primary">{v}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </div>
               </div>
-
-              <StatTile
-                label="Representative coverage"
-                value={guided!.metrics.representativeCoverage}
-                format={(v) => pct(v)}
-                delta={run.delta.representativeCoverage}
-                deltaLabel={pp(run.delta.representativeCoverage)}
-                hint={`Traditional reached ${pct(
-                  traditional!.metrics.representativeCoverage,
-                )}. 100% means the collected tissue mirrors the tumour's composition.`}
-                pending={pending}
-              />
-
-              <StatTile
-                label="Tumour hit rate"
-                value={guided!.metrics.hitRate}
-                format={(v) => pct(v)}
-                delta={run.delta.hitRate}
-                deltaLabel={pp(run.delta.hitRate)}
-                hint={`Traditional reached ${pct(
-                  traditional!.metrics.hitRate,
-                )}. Hitting tumour is the easy part — it barely separates the two.`}
-                pending={pending}
-              />
-            </section>
-
-            {/* Small multiples: identical scales, identity from the panel title. */}
-            <section className="mb-10">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="title-1 text-ink-primary">Where the passes landed</h2>
-                <RegionLegend />
+            ) : (
+              <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="title-2 text-ink-primary">
+                    Tumour volume
+                    <span className="label-mono ml-2 text-ink-muted">
+                      {caseData?.features.space} · drag to rotate
+                    </span>
+                  </h3>
+                  <RegionLegend features={caseData?.features} showShare />
+                </div>
+                <div className="h-104 sm:h-128">
+                  {cloud ? (
+                    <TumourVolume3D
+                      cloud={cloud}
+                      passes={overlayPasses}
+                      shape={caseData?.features.shape}
+                      themeKey={theme}
+                      autoRotate={!overlayPasses}
+                    />
+                  ) : (
+                    <div className="caption grid h-full place-items-center text-ink-muted">
+                      Loading volume…
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                {PANELS.map(({ id, caption }) => {
-                  const result = run.results[id];
-                  return (
-                    <div key={id} className="panel rounded-2xl p-5 ring-1 ring-hairline">
+            {/* Metrics appear once there is something to compare. */}
+            {run && baseline && stratified && current.stage !== "case" && (
+              <>
+                {(current.stage === "baseline" ||
+                  current.stage === "stratified" ||
+                  current.stage === "compare") && (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {(current.stage === "compare"
+                      ? ([
+                          ["Representativeness", stratified.representativeness, run.delta.representativeness],
+                          ["Evenness J′", stratified.evenness, run.delta.evenness],
+                          ["Hit rate", stratified.hitRate, run.delta.hitRate],
+                        ] as const)
+                      : ([
+                          [
+                            "Representativeness",
+                            current.stage === "baseline"
+                              ? baseline.representativeness
+                              : stratified.representativeness,
+                            undefined,
+                          ],
+                          [
+                            "Evenness J′",
+                            current.stage === "baseline" ? baseline.evenness : stratified.evenness,
+                            undefined,
+                          ],
+                          [
+                            "Hit rate",
+                            current.stage === "baseline" ? baseline.hitRate : stratified.hitRate,
+                            undefined,
+                          ],
+                        ] as const)
+                    ).map(([label, value, delta]) => (
+                      <StatTile
+                        key={label}
+                        label={label}
+                        value={value as number}
+                        format={(v) => (label === "Evenness J′" ? v.toFixed(2) : pct(v))}
+                        delta={delta as number | undefined}
+                        deltaLabel={delta !== undefined ? pp(delta as number) : undefined}
+                        pending={pending}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div
+                  className={
+                    current.stage === "compare"
+                      ? "grid gap-4 md:grid-cols-2"
+                      : "grid gap-4"
+                  }
+                >
+                  {(current.stage === "compare"
+                    ? [baseline, stratified]
+                    : [current.stage === "stratified" ? stratified : baseline]
+                  ).map((result) => (
+                    <div
+                      key={result.name}
+                      className="panel rounded-2xl p-5 ring-1 ring-hairline"
+                    >
                       <div className="mb-4 flex items-baseline justify-between gap-3">
                         <div>
-                          <h3 className="title-2 text-ink-primary">{result.label}</h3>
-                          <p className="caption mt-0.5 text-ink-secondary">{caption}</p>
+                          <h3 className="title-2 text-ink-primary">{result.name}</h3>
+                          <p className="caption mt-0.5 text-ink-secondary">
+                            {result.approach}
+                          </p>
                         </div>
                         <div className="shrink-0 text-right">
                           <AnimatedNumber
-                            value={result.metrics.representativeCoverage}
+                            value={result.representativeness}
                             format={(v) => pct(v)}
                             className="mono block text-xl leading-none text-ink-primary"
                           />
-                          <div className="label-mono mt-1 text-ink-muted">coverage</div>
+                          <div className="label-mono mt-1 text-ink-muted">repr.</div>
                         </div>
                       </div>
-
-                      <TumourSlice
-                        map={run.map}
-                        paths={result.paths}
-                        themeKey={theme}
-                        pending={pending}
-                      />
-
-                      <p className="caption mt-4 text-ink-secondary">{result.approach}</p>
-                      <p className="mono mt-1.5 text-xs text-ink-muted">
-                        {result.metrics.hits}/{result.metrics.passes} passes hit tumour ·{" "}
-                        {result.metrics.regionsTouched}/3 regions reached
+                      {caseData && (
+                        <RegionBalance
+                          features={caseData.features}
+                          result={result}
+                          pending={pending}
+                        />
+                      )}
+                      <p className="mono mt-3 text-xs text-ink-muted">
+                        {result.hits}/{result.passes} passes hit tumour ·{" "}
+                        {result.regionsTouched}/3 compartments reached
                       </p>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
+                  ))}
+                </div>
 
-            <section className="mb-10">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="title-1 text-ink-primary">
-                  Sampled share vs. true volume share
-                </h2>
-                <RegionLegend showReference />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {PANELS.map(({ id }) => (
-                  <div key={id} className="panel rounded-2xl p-5 ring-1 ring-hairline">
-                    <h3 className="title-2 mb-4 text-ink-primary">
-                      {run.results[id].label}
-                    </h3>
-                    <RegionBalance map={run.map} result={run.results[id]} pending={pending} />
+                {current.stage === "compare" && (
+                  <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
+                    <RegionLegend features={caseData?.features} showReference />
+                    <p className="caption mt-3 text-ink-secondary">
+                      Representativeness is 1 − the total variation distance between the
+                      sampled compartment mix and the true volumetric mix. Pielou&apos;s
+                      J′ asks whether the sample is <em>balanced</em>; representativeness
+                      asks whether it matches <em>this</em> tumour. They disagree by
+                      design, so both are reported.
+                    </p>
                   </div>
-                ))}
-              </div>
-            </section>
+                )}
+              </>
+            )}
+          </main>
+        </div>
 
-            <section className="mb-10">
-              <h2 className="title-1 mb-4 text-ink-primary">Where the data goes</h2>
-              <PrivacyBoundary />
-            </section>
-
-            <section className="mb-10 grid gap-4 md:grid-cols-2">
-              <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <h2 className="title-2 text-ink-primary">Local analysis</h2>
-                  <span className="label-mono rounded-full bg-surface-2 px-2.5 py-1 text-ink-secondary ring-1 ring-hairline">
-                    {run.analysis.model}
-                  </span>
-                </div>
-                <p className="caption text-ink-secondary">{run.analysis.summary}</p>
-                <dl className="mt-4 space-y-2.5">
-                  {run.analysis.regions.map((region) => (
-                    <div key={region.id} className="caption">
-                      <dt className="font-medium text-ink-primary">
-                        {region.label} — {region.density}
-                      </dt>
-                      <dd className="text-ink-secondary">{region.note}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="caption mt-4 border-t border-grid pt-3 text-ink-muted">
-                  The slice itself never leaves the machine. Only the structured summary
-                  above is passed onward.
-                </p>
-              </div>
-
-              <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <h2 className="title-2 text-ink-primary">Sampling strategy</h2>
-                  <span className="label-mono rounded-full bg-surface-2 px-2.5 py-1 text-ink-secondary ring-1 ring-hairline">
-                    {run.strategy.model}
-                  </span>
-                </div>
-                <p className="caption text-ink-secondary">{run.strategy.rationale}</p>
-                <ul className="mono mt-4 space-y-1.5 text-xs text-ink-secondary">
-                  {run.strategy.allocation.map((entry) => (
-                    <li key={entry.region} className="flex justify-between tabular">
-                      <span>Region {entry.region}</span>
-                      <span className="text-ink-primary">{entry.passes} passes</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="caption mt-4 border-t border-grid pt-3 text-ink-muted">
-                  Receives the structured summary only — never the image.
-                </p>
-              </div>
-            </section>
-
-            <section className="panel mb-10 rounded-2xl p-5 ring-1 ring-hairline">
-              <h2 className="title-2 mb-4 text-ink-primary">All values</h2>
-              <RegionTable run={run} />
-            </section>
-          </>
-        )}
-
-        <footer className="caption border-t border-grid pt-5 text-ink-muted">
+        <footer className="caption mt-10 border-t border-grid pt-5 text-ink-muted">
           <p>
-            Representative coverage is 1 − the total variation distance between the
-            sampled region distribution and the true one. Concentrating every pass in a
-            single region caps it at that region&apos;s share of tumour volume.
-          </p>
-          <p className="mt-2">
-            Synthetic data throughout. Not a medical device, not a diagnosis, not a
-            recommendation for any patient.
+            Real de-identified research imaging. Research prototype — not a medical
+            device, not a diagnosis, not a recommendation for any patient.
           </p>
         </footer>
       </div>
