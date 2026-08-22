@@ -1,13 +1,5 @@
 import type { StepId } from "./types";
 
-/**
- * The guided walkthrough.
- *
- * Ordered so the argument builds rather than dumping every panel at once:
- * establish the real case, show the compartments, run the standard approach,
- * reveal what it missed, let the local model replan, re-run, then compare.
- * Each step is one beat of a demo recording.
- */
 export interface Step {
   id: StepId;
   /** Zero-padded index shown in the stepper. */
@@ -25,17 +17,17 @@ export const STEPS: Step[] = [
   {
     id: "case",
     number: "01",
-    title: "A real case, not a phantom",
+    title: "Dataset MRI image",
     narration:
-      "This is subject sub-NSK46 from a public, de-identified research dataset — a 3T Philips study with T1, T1 post-contrast, T2 and FLAIR, plus an expert tumour segmentation. Real imaging, real tumour geometry.",
+      "This is the MRI scan of subject in NSK46 the OpenNeuro dataset. It contains T1, T1 post-contrast, T2 and FLAIR images, and as mentioned above, it has already been segmented.",
     stage: "case",
   },
   {
     id: "compartments",
     number: "02",
-    title: "One tumour, three territories",
+    title: "Segmentation of the MRI image",
     narration:
-      "The segmentation splits the mass into three compartments: a necrotic core, an infiltrative margin, and an active enhancing rim. They are close to equal in volume — so no single one of them stands in for the tumour. Drag to rotate.",
+      "This is a visualisation of the MRI segmentation, as taken directly from the dataset. There are three sections that have been characterised in the image: a necrotic core, an infiltrative margin, and an active enhancing rim. Because they are all roughly equal in volume, it is important to get representative samples of each type of segment.",
     stage: "volume",
   },
   {
@@ -43,7 +35,7 @@ export const STEPS: Step[] = [
     number: "03",
     title: "The standard approach",
     narration:
-      "Standard practice aims the needle at the geometric centroid of the mass, through one narrow corridor. Every pass converges on the middle. Watch where the cores actually land.",
+      "The standard approach to biopsying brain tumours is where the biopsy needle is directed towards the geometric centroid of the mass, through one narrow corridor.",
     stage: "baseline",
     overlay: "baseline",
   },
@@ -52,7 +44,7 @@ export const STEPS: Step[] = [
     number: "04",
     title: "What it missed",
     narration:
-      "The hit rate looks perfect — essentially every pass returned tumour tissue. But look at the composition: the infiltrative margin is barely represented, or absent entirely. A pathologist receives tissue that does not describe this tumour.",
+      "However, the problem with this approach is that even though it appears as if every pass returns tissue, it's not actually representative of the tumour as a whole. Looking at the aggregate statistics The hit rate looks perfect — essentially every pass returned tumour tissue. But look at the composition: the infiltrative margin is barely represented, or absent entirely. A pathologist receives tissue that does not describe this tumour.",
     stage: "baseline",
     overlay: "baseline",
   },
