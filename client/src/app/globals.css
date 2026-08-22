@@ -1,49 +1,444 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens — blue / white / orange, clinical instrument register.
+
+   Light values live on bare :root. Dark values are redefined under BOTH the OS
+   media query and the explicit [data-theme="dark"] scope, so the in-app toggle
+   wins in either direction. No colour is defined only inside a media block.
+
+   THREE SEPARATE COLOUR ROLES, deliberately kept apart:
+
+   1. BRAND CHROME (--brand, --accent) dresses the interface: buttons, focus,
+      rules, links. It is never a data mark. Brand blue is a deeper step than
+      region blue so the two read as different roles at a glance.
+
+   2. GLASS (--glass-*) is the floating chrome layer only — header, control
+      bar, chips. Data panels stay SOLID --surface-1, because the region hues
+      were contrast-validated against that exact surface and a translucent
+      backing would invalidate the measurement.
+
+   3. REGION HUES (--region-a/b/c) are the page's ONLY categorical scale,
+      assigned in fixed order and never cycled. Validated all-pairs against
+      these exact surfaces in both modes: worst CVD ΔE 9.2 light / 9.4 dark,
+      worst normal-vision ΔE 24.0 light / 20.9 dark. A fourth hue does not
+      clear the all-pairs floors, so sampling strategies are distinguished by
+      small multiples and labels rather than by colour.
+
+   Light-mode aqua sits at 2.74:1 against the surface, below the 3:1 bar — the
+   relief rule applies, which is why every region mark on this page ships a
+   visible direct label and a table view.
+--------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --plane: #f4f7fa;
+  --surface-1: #fbfcfd;
+  --surface-2: #eef2f7;
+
+  --ink-primary: #0d1520;
+  --ink-secondary: #4a5666;
+  --ink-muted: #6b7787;
+
+  --grid: #dfe6ee;
+  --axis: #c2ccd8;
+  --hairline: rgba(13, 21, 32, 0.1);
+
+  /* Chrome. Never a data mark. */
+  --brand: #184f95;
+  --brand-hover: #12406f;
+  --brand-ink: #ffffff;
+  --accent: #eb6834;
+
+  /* Floating material. Chrome only — never behind a data mark. */
+  --glass-bg: rgba(251, 252, 253, 0.72);
+  --glass-bg-strong: rgba(251, 252, 253, 0.85);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-shadow: rgba(13, 21, 32, 0.08);
+
+  /* Ambient wash the glass has something to refract. */
+  --ambient-1: rgba(24, 79, 149, 0.1);
+  --ambient-2: rgba(235, 104, 52, 0.07);
+
+  /* Categorical slots 1–3 — tumour regions A, B, C. */
+  --region-a: #2a78d6;
+  --region-b: #eb6834;
+  --region-c: #1baf7a;
+
+  --delta-good: #006300;
+  --status-warning: #fab219;
+
+  /* Needle paths draw as neutral ink with a surface halo, never a 4th hue. */
+  --needle: #0d1520;
+  --needle-halo: #fbfcfd;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+
+    --plane: #0a0e14;
+    --surface-1: #121820;
+    --surface-2: #1a222d;
+
+    --ink-primary: #ffffff;
+    --ink-secondary: #b3becd;
+    --ink-muted: #8b96a5;
+
+    --grid: #232c38;
+    --axis: #313c4a;
+    --hairline: rgba(255, 255, 255, 0.1);
+
+    --brand: #6da7ec;
+    --brand-hover: #86b6ef;
+    --brand-ink: #0a0e14;
+    --accent: #d95926;
+
+    --glass-bg: rgba(18, 24, 32, 0.68);
+    --glass-bg-strong: rgba(18, 24, 32, 0.84);
+    --glass-edge: rgba(255, 255, 255, 0.12);
+    --glass-shadow: rgba(0, 0, 0, 0.5);
+
+    --ambient-1: rgba(109, 167, 236, 0.14);
+    --ambient-2: rgba(217, 89, 38, 0.1);
+
+    --region-a: #3987e5;
+    --region-b: #d95926;
+    --region-c: #199e70;
+
+    --delta-good: #0ca30c;
+
+    --needle: #ffffff;
+    --needle-halo: #0a0e14;
   }
 }
 
-html {
-  height: 100%;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --plane: #0a0e14;
+  --surface-1: #121820;
+  --surface-2: #1a222d;
+
+  --ink-primary: #ffffff;
+  --ink-secondary: #b3becd;
+  --ink-muted: #8b96a5;
+
+  --grid: #232c38;
+  --axis: #313c4a;
+  --hairline: rgba(255, 255, 255, 0.1);
+
+  --brand: #6da7ec;
+  --brand-hover: #86b6ef;
+  --brand-ink: #0a0e14;
+  --accent: #d95926;
+
+  --glass-bg: rgba(18, 24, 32, 0.68);
+  --glass-bg-strong: rgba(18, 24, 32, 0.84);
+  --glass-edge: rgba(255, 255, 255, 0.12);
+  --glass-shadow: rgba(0, 0, 0, 0.5);
+
+  --ambient-1: rgba(109, 167, 236, 0.14);
+  --ambient-2: rgba(217, 89, 38, 0.1);
+
+  --region-a: #3987e5;
+  --region-b: #d95926;
+  --region-c: #199e70;
+
+  --delta-good: #0ca30c;
+
+  --needle: #ffffff;
+  --needle-halo: #0a0e14;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+@theme inline {
+  --color-plane: var(--plane);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
 
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-hairline: var(--hairline);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-ink: var(--brand-ink);
+  --color-accent: var(--accent);
+
+  --color-region-a: var(--region-a);
+  --color-region-b: var(--region-b);
+  --color-region-c: var(--region-c);
+
+  --color-delta-good: var(--delta-good);
+  --color-status-warning: var(--status-warning);
+
+  --font-sans: var(--font-plex-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
+}
+
+body {
   margin: 0;
+  min-height: 100dvh;
+  background: var(--plane);
+  color: var(--ink-primary);
+  font-family: var(--font-plex-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* Ambient depth. Fixed, low-alpha, and static — a moving full-viewport wash is
+   a vestibular risk, so this never animates. It exists so the glass layers
+   have something to actually refract. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, var(--ambient-1), transparent 60%),
+    radial-gradient(45rem 35rem at 105% 8%, var(--ambient-2), transparent 55%);
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+/* ---------------------------------------------------------------------------
+   Typography.
+
+   Plex Sans carries prose and headline figures; Plex Mono is reserved for
+   technical furniture — field labels, axis ticks, table numerals, readouts.
+
+   Tracking is size-specific, never one value for everything: large text gets
+   negative tracking because letters read too far apart as they grow, body sits
+   near zero, and small mono labels get a positive bump for legibility. Leading
+   moves inversely to size — tight on display, generous on body.
+--------------------------------------------------------------------------- */
+
+.display-1 {
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.028em;
+  font-weight: 600;
+}
+
+.title-1 {
+  font-size: 1.375rem;
+  line-height: 1.25;
+  letter-spacing: -0.016em;
+  font-weight: 600;
+}
+
+.title-2 {
+  font-size: 1rem;
+  line-height: 1.35;
+  letter-spacing: -0.008em;
+  font-weight: 500;
+}
+
+.body-text {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+.caption {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  letter-spacing: 0.002em;
+}
+
+/* Large standalone figures: tight leading, slight negative tracking, and
+   proportional digits — tabular-nums makes display numerals read loose. */
+.figure-hero {
+  font-size: clamp(2.75rem, 5vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+.figure-md {
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: -0.022em;
+  font-weight: 500;
+}
+
+/* Small tracked uppercase mono — the field label used throughout the UI. */
+.label-mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-feature-settings: "zero" 1;
+}
+
+/* Equal-width digits, only where numbers align vertically (tables, ticks). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   Materials.
+
+   Glass is the floating chrome layer: header, control bar, chips. Content
+   scrolls underneath it. Data panels are deliberately NOT glass — the region
+   palette was validated against a solid surface, and stacking translucency
+   under a data mark would both break that measurement and, per the material
+   rules, put a light translucent surface on another.
+--------------------------------------------------------------------------- */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Bright top edge: light catching the lip of the material. */
+  border-top: 1px solid var(--glass-edge);
+  box-shadow: 0 1px 2px var(--glass-shadow);
+}
+
+/* Bigger surfaces read as thicker: stronger blur, deeper shadow. */
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid var(--glass-edge);
+  box-shadow: 0 8px 28px var(--glass-shadow);
+}
+
+/* Solid data surface — the validated backing for every region mark. */
+.panel {
+  background: var(--surface-1);
+  box-shadow: 0 1px 2px var(--glass-shadow);
+}
+
+/* Scroll edge effect: content fades as it passes under floating chrome,
+   instead of a hard 1px divider. */
+.scroll-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 1.5rem;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--glass-bg), transparent);
+}
+
+/* Brand signature: the one place blue and orange meet as pure chrome. */
+.brand-rule {
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand) 55%, var(--accent) 100%);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion.
+
+   Entrances "materialize" — blur and scale resolve together so a glass surface
+   reads as a real material arriving rather than an opacity fade. Gesture-driven
+   motion uses springs in JS (see AnimatedNumber); these keyframes are only for
+   non-interruptible entrances.
+--------------------------------------------------------------------------- */
+
+@keyframes materialize {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.materialize {
+  animation: materialize 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Press feedback lands on pointer-down and is instant — waiting for the click
+   to acknowledge a press is what makes an interface feel dead. */
+.press {
+  transition:
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease-out,
+    color 140ms ease-out;
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Accessibility preferences. Reduced motion is not "no feedback" — it is a
+   gentler, non-vestibular equivalent, so opacity changes that aid
+   comprehension survive while movement and blur do not.
+--------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .materialize {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  .press:active {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-strong {
+    background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  body::before {
+    display: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .glass,
+  .glass-strong,
+  .panel {
+    background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid var(--ink-primary);
+  }
+
+  body::before {
+    display: none;
   }
 }
