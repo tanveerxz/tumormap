@@ -18,13 +18,16 @@ Two things this fixes over loading ad hoc:
 
 from __future__ import annotations
 
+import base64
 import functools
+import io
 import json
 from pathlib import Path
 from typing import Any
 
 import nibabel as nib
 import numpy as np
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "sub-NSK46" / "anat"
@@ -216,6 +219,14 @@ def mri_slice(modality: str = "T1_post", plane: str = "axial") -> dict[str, Any]
     windowed = np.flipud(windowed.T)
     as_bytes = (windowed * 255).astype(np.uint8)
 
+    # Encode as a grayscale PNG rather than a JSON array of integers. The array
+    # form spent ~4 characters per byte and made a single slice ~480 kB on the
+    # wire; PNG brings the same pixels under 60 kB, which matters as soon as
+    # the page is opened from anywhere other than this machine.
+    buffer = io.BytesIO()
+    Image.fromarray(as_bytes, mode="L").save(buffer, format="PNG", optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+
     return {
         "modality": modality,
         "plane": plane,
@@ -224,7 +235,7 @@ def mri_slice(modality: str = "T1_post", plane: str = "axial") -> dict[str, Any]
         "registeredToMask": False,
         "width": int(as_bytes.shape[1]),
         "height": int(as_bytes.shape[0]),
-        "pixels": as_bytes.flatten().tolist(),
+        "png": f"data:image/png;base64,{encoded}",
     }
 
 

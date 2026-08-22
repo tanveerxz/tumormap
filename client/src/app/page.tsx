@@ -262,6 +262,11 @@ export default function Home() {
               </div>
               <h2 className="title-1 mb-3 text-ink-primary">{current.title}</h2>
               <p className="body-text text-ink-secondary">{current.narration}</p>
+              {current.followUp && (
+                <p className="body-text mt-3 border-l-2 pl-3 text-ink-secondary" style={{ borderColor: "var(--brand)" }}>
+                  {current.followUp}
+                </p>
+              )}
 
               {current.id === "gemma" && (
                 <div className="mt-4 border-t border-grid pt-4">

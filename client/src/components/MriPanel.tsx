@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import InfoTip from "./InfoTip";
 import { fetchSlice } from "@/lib/api";
 import type { MriSlice } from "@/lib/types";
@@ -21,7 +21,6 @@ const MODALITIES = [
  * presentation given the published files.
  */
 export default function MriPanel() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [modality, setModality] = useState("T1_post");
   const [slice, setSlice] = useState<MriSlice | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,46 +43,6 @@ export default function MriPanel() {
       });
     return () => controller.abort();
   }, [modality]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !slice) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const buffer = document.createElement("canvas");
-    buffer.width = slice.width;
-    buffer.height = slice.height;
-    const bctx = buffer.getContext("2d");
-    if (!bctx) return;
-
-    const image = bctx.createImageData(slice.width, slice.height);
-    for (let i = 0; i < slice.pixels.length; i++) {
-      const v = slice.pixels[i];
-      const o = i * 4;
-      image.data[o] = v;
-      image.data[o + 1] = v;
-      image.data[o + 2] = v;
-      image.data[o + 3] = 255;
-    }
-    bctx.putImageData(image, 0, 0);
-
-    const size = canvas.clientWidth;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size * dpr);
-    canvas.height = Math.round(size * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, size, size);
-
-    // Letterbox rather than stretch — aspect matters on a medical image.
-    const scale = Math.min(size / slice.width, size / slice.height);
-    const w = slice.width * scale;
-    const h = slice.height * scale;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(buffer, (size - w) / 2, (size - h) / 2, w, h);
-  }, [slice]);
 
   const active = MODALITIES.find((m) => m.id === modality);
 
@@ -117,21 +76,27 @@ export default function MriPanel() {
         })}
       </div>
 
-      <div className="relative">
-        {/* Keyed on the loaded modality so React remounts it on every swap,
-            which restarts the entrance animation. */}
-        <div key={slice?.modality ?? "empty"} className={loading ? undefined : "scan-in"}>
-          <canvas
-            ref={canvasRef}
-            className="block aspect-square w-full rounded-xl ring-1 ring-hairline transition-opacity duration-200"
-            style={{ background: "#000", opacity: loading ? 0.25 : 1 }}
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-black ring-1 ring-hairline">
+        {slice && (
+          // Keyed on the loaded modality so React remounts it on every swap,
+          // which restarts the entrance animation. A cached slice can return in
+          // single-digit milliseconds, and without a deliberate entrance two
+          // near-identical greyscale images swapping that fast read as "nothing
+          // happened".
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={slice.modality}
+            src={slice.png}
+            alt={`${slice.modality} scan, axial slice ${slice.sliceIndex}`}
+            className={`h-full w-full object-contain transition-opacity duration-200 ${
+              loading ? "" : "scan-in"
+            }`}
+            style={{ opacity: loading ? 0.25 : 1 }}
           />
-        </div>
+        )}
 
-        {/* Explicit loading state. Without it a scan switch just swaps pixels
-            and reads as though nothing happened. */}
         {loading && (
-          <div className="absolute inset-0 grid place-items-center rounded-xl">
+          <div className="absolute inset-0 grid place-items-center">
             <div className="flex flex-col items-center gap-2.5">
               <span
                 aria-hidden
@@ -149,7 +114,7 @@ export default function MriPanel() {
         )}
 
         {error && (
-          <div className="caption absolute inset-0 grid place-items-center rounded-xl px-4 text-center text-ink-muted">
+          <div className="caption absolute inset-0 grid place-items-center px-4 text-center text-ink-muted">
             {error}
           </div>
         )}

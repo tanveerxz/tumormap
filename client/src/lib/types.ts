@@ -158,8 +158,9 @@ export interface MriSlice {
   registeredToMask: boolean;
   width: number;
   height: number;
-  /** Row-major grayscale bytes, length width*height. */
-  pixels: number[];
+  /** Grayscale PNG as a data URI. Encoded server-side: the raw byte array
+   *  cost ~480 kB per slice as JSON, versus under 60 kB as PNG. */
+  png: string;
 }
 
 export interface HealthResponse {
@@ -172,11 +173,4 @@ export interface HealthResponse {
 }
 
 /** Stages the guided walkthrough steps through. */
-export type StepId =
-  | "case"
-  | "compartments"
-  | "baseline"
-  | "problem"
-  | "gemma"
-  | "stratified"
-  | "verdict";
+export type StepId = "case" | "compartments" | "baseline" | "gemma" | "verdict";

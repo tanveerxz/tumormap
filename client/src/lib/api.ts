@@ -14,9 +14,16 @@ import type {
   RunResponse,
 } from "./types";
 
-export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"
-).replace(/\/$/, "");
+/**
+ * Empty by default: requests go to this page's own origin and are proxied to
+ * the Python server by the rewrites in next.config.ts.
+ *
+ * Pointing the browser straight at the backend only ever worked on the machine
+ * running it — elsewhere 127.0.0.1 is the viewer's own loopback, and over an
+ * HTTPS tunnel a plain-HTTP call is blocked as mixed content. Override only if
+ * the API is genuinely served from another origin with CORS configured.
+ */
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(

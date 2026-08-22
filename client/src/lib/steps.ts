@@ -3,18 +3,21 @@ import type { StepId } from "./types";
 /**
  * The guided walkthrough.
  *
- * Ordered so the argument builds rather than dumping every panel at once:
- * establish the real case, show the compartments, run the standard approach,
- * reveal what it missed, let the local model replan, re-run, then compare.
- * Each step is one beat of a demo recording.
+ * Five beats. The standard approach and its failure are one step, not two —
+ * the whole point is that the good number and the bad number describe the same
+ * biopsy, so splitting them across a click lets the contradiction go unnoticed.
+ * Likewise the model's plan and the re-run are one step: the plan is only
+ * meaningful once you see what it does.
  */
 export interface Step {
   id: StepId;
   /** Zero-padded index shown in the stepper. */
   number: string;
   title: string;
-  /** Spoken-register narration — this is the demo script. */
+  /** Spoken-register narration — this doubles as the demo script. */
   narration: string;
+  /** Optional second paragraph, used where a step carries a turn. */
+  followUp?: string;
   /** What the stage shows at this step. */
   stage: "case" | "volume" | "baseline" | "stratified" | "compare";
   /** Show needle tracks for this strategy, if any. */
@@ -25,9 +28,9 @@ export const STEPS: Step[] = [
   {
     id: "case",
     number: "01",
-    title: "A real case, not a phantom",
+    title: "A real case",
     narration:
-      "This is subject sub-NSK46 from a public, de-identified research dataset — a 3T Philips study with T1, T1 post-contrast, T2 and FLAIR, plus an expert tumour segmentation. Real imaging, real tumour geometry.",
+      "This is a real, de-identified brain scan from a public research dataset — not a simulation and not a phantom. Four different scan types of the same head, plus an expert outline of exactly where the tumour is and which parts are which.",
     stage: "case",
   },
   {
@@ -35,50 +38,40 @@ export const STEPS: Step[] = [
     number: "02",
     title: "One tumour, three territories",
     narration:
-      "The segmentation splits the mass into three compartments: a necrotic core, an infiltrative margin, and an active enhancing rim. They are close to equal in volume — so no single one of them stands in for the tumour. Drag to rotate.",
+      "A tumour is not one uniform thing. This one has a dead core, a live growing rim, and a blurred zone where it is invading healthy brain. They are close to equal in size, so no single one of them speaks for the whole tumour.",
+    followUp: "Drag the volume to turn it.",
     stage: "volume",
   },
   {
     id: "baseline",
     number: "03",
-    title: "The standard approach",
+    title: "The standard approach, and what it costs",
     narration:
-      "Standard practice aims the needle at the geometric centroid of the mass, through one narrow corridor. Every pass converges on the middle. Watch where the cores actually land.",
-    stage: "baseline",
-    overlay: "baseline",
-  },
-  {
-    id: "problem",
-    number: "04",
-    title: "What it missed",
-    narration:
-      "The hit rate looks perfect — essentially every pass returned tumour tissue. But look at the composition: the infiltrative margin is barely represented, or absent entirely. A pathologist receives tissue that does not describe this tumour.",
+      "Standard practice aims the needle at the middle of the mass. Every pass converges on the same point — and by the usual measure it works: essentially every needle comes back with tumour tissue. A perfect hit rate.",
+    followUp:
+      "But look at where that tissue came from. One of the three territories is barely touched, sometimes not sampled at all. The lab receives a sample that does not describe this tumour — and nothing about the hit rate reveals that.",
     stage: "baseline",
     overlay: "baseline",
   },
   {
     id: "gemma",
-    number: "05",
-    title: "Gemma replans, on device",
+    number: "04",
+    title: "The model replans, on this computer",
     narration:
-      "The compartment structure — volumes and shares, no image, no identifiers — goes to Gemma running locally through Ollama. Nothing leaves the machine. Gemma returns how it would spend the pass budget across the three territories.",
-    stage: "volume",
-  },
-  {
-    id: "stratified",
-    number: "06",
-    title: "Sampling to the plan",
-    narration:
-      "The same simulator, the same number of passes, the same tumour — only the targeting changed. Passes are now distributed across compartments, with targets drawn from inside each one.",
+      "Now the tumour's structure — just the sizes of the three parts, no image and no patient details — goes to Gemma, an AI model running on this machine. Nothing is sent to the internet. It decides how to spread the same number of passes.",
+    followUp:
+      "The simulation re-runs on its plan. Same tumour, same number of passes, same needle — the only thing that changed is where they are aimed.",
     stage: "stratified",
     overlay: "stratified",
   },
   {
     id: "verdict",
-    number: "07",
+    number: "05",
     title: "What actually changed",
     narration:
-      "Hit rate barely moves, and can even drop — reaching tumour was never the hard part. Evenness and representativeness move sharply. The finding is not that AI is better; it is that where you sample determines whether the tissue represents the tumour.",
+      "The hit rate barely moves, and can even fall — reaching the tumour was never the hard part. What moves is how well the sample matches the tumour it came from.",
+    followUp:
+      "The claim is not that AI beats a surgeon. It is that where you sample decides whether the tissue represents the tumour, and that this is now measurable on real anatomy.",
     stage: "compare",
   },
 ];
