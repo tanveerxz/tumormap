@@ -152,7 +152,7 @@ export default function Home() {
                     : "var(--accent)",
                 }}
               />
-              {health?.gemma.available ? "Gemma local" : "Gemma offline"}
+              {health?.gemma.available ? "Gemma is currently running locally" : "Gemma is currently offline"}
             </span>
             <ThemeToggle theme={theme} onChange={setTheme} />
           </div>
@@ -160,17 +160,16 @@ export default function Home() {
       </nav>
 
       <div className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6">
-        <header className="materialize mb-6 max-w-3xl">
-          <p className="label-mono mb-3 text-brand">
-            Intratumour heterogeneity · virtual biopsy sampling
-          </p>
-          <h1 className="display-1 text-ink-primary">Where should a biopsy be taken?</h1>
+        {/* Wider than the usual reading measure because the intro is a long
+            single paragraph — at max-w-3xl it stacked into a tall block. */}
+        <header className="materialize mb-6 max-w-5xl">
+          <h1 className="display-1 text-ink-primary">Comparing standard and AI-driven approaches to brain tumour biopsy</h1>
           <p className="body-text mt-4 text-ink-secondary">
-            When a tumour is biopsied, a needle removes a sliver — well under one
-            percent of it. If that sliver comes from the wrong part, the lab draws
-            conclusions about a tumour it never really saw. This walks through whether{" "}
-            <em>where</em> you aim changes that, using real scans and an AI model
-            running entirely on this computer.
+            Our project compares the traditional approach to the sampling of glioblastomas, which is directly inserting the biopsy needle into
+            the centre of mass of the tumour, to an approach where the sample locations are suggested by a local image processing pipeline using Gemma.
+            Often, the problem with the standard sampling approach is that not all types of tissue in the tumour are represented in the sampled tissue; 
+            if you just aim towards the middle of the mass, you risk under or oversampling different tissue types. As such, we have built a tool to 
+            visualise the tumour and the sampling locations, and to compare the two approaches. The tool is intended for educational purposes only, and is not to be used for clinical decisions.
           </p>
         </header>
 
@@ -270,11 +269,6 @@ export default function Home() {
               </div>
               <h2 className="title-1 mb-3 text-ink-primary">{current.title}</h2>
               <p className="body-text text-ink-secondary">{current.narration}</p>
-              {current.followUp && (
-                <p className="body-text mt-3 border-l-2 pl-3 text-ink-secondary" style={{ borderColor: "var(--brand)" }}>
-                  {current.followUp}
-                </p>
-              )}
 
               {current.id === "gemma" && (
                 <div className="mt-4 border-t border-grid pt-4">

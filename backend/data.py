@@ -50,19 +50,19 @@ REGIONS: dict[int, dict[str, str]] = {
     1: {
         "id": "NCR",
         "name": "Necrotic / non-enhancing core",
-        "short": "Necrosis",
+        "short": "Necrotic tissue",
         "note": "Hypoxic, non-viable tissue with degraded DNA. Sampling here alone yields poor molecular profiling.",
     },
     2: {
         "id": "ED",
         "name": "Peritumoral infiltration / edema",
-        "short": "Infiltration",
+        "short": "Infiltrative tissue",
         "note": "Invasive margin with migrating glioma cells. Defines resection margins and radiation fields.",
     },
     3: {
         "id": "ET",
         "name": "Active enhancing rim",
-        "short": "Enhancing",
+        "short": "Enhancing tissue",
         "note": "Hypervascular, highly proliferative cells. The critical target for targeted therapy and sequencing.",
     },
 }

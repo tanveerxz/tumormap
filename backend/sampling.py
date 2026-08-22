@@ -188,8 +188,8 @@ def centroid_strategy(n_passes: int, seed: int = 42) -> dict[str, Any]:
             entry_arc=(0.6, 1.2),
             seed=seed,
         ),
-        name="Centroid-targeted",
-        approach="Every pass aimed at the geometric centroid through one narrow corridor.",
+        name="Standard approach",
+        approach="Statistics for this tumour using the standard sampling approach, which aims the biopsy needles towards the geometric centroid of the tumour.",
     )
 
 
