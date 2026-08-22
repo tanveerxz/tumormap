@@ -28,17 +28,17 @@ export const STEPS: Step[] = [
   {
     id: "case",
     number: "01",
-    title: "A real case",
+    title: "Dataset MRI image",
     narration:
-      "This is a real, de-identified brain scan from a public research dataset — not a simulation and not a phantom. Four different scan types of the same head, plus an expert outline of exactly where the tumour is and which parts are which.",
+      "This is the MRI scan of subject NSK46 from the OpenNeuro dataset. It contains T1, T1 post-contrast, T2 and FLAIR images, and has already been segmented by an expert — a real scan of a real tumour, not a simulation.",
     stage: "case",
   },
   {
     id: "compartments",
     number: "02",
-    title: "One tumour, three territories",
+    title: "Segmentation of the MRI image",
     narration:
-      "A tumour is not one uniform thing. This one has a dead core, a live growing rim, and a blurred zone where it is invading healthy brain. They are close to equal in size, so no single one of them speaks for the whole tumour.",
+      "This is a visualisation of the segmentation, taken directly from the dataset. Three sections have been characterised: a necrotic core, an infiltrative margin, and an active enhancing rim. Because they are roughly equal in volume, a sample needs to represent all three.",
     followUp: "Drag the volume to turn it.",
     stage: "volume",
   },
@@ -47,9 +47,9 @@ export const STEPS: Step[] = [
     number: "03",
     title: "The standard approach, and what it costs",
     narration:
-      "Standard practice aims the needle at the middle of the mass. Every pass converges on the same point — and by the usual measure it works: essentially every needle comes back with tumour tissue. A perfect hit rate.",
+      "The standard approach to biopsying brain tumours directs the needle at the geometric centroid of the mass, through one narrow corridor. By the usual measure it works: essentially every pass returns tumour tissue, giving a near-perfect hit rate.",
     followUp:
-      "But look at where that tissue came from. One of the three territories is barely touched, sometimes not sampled at all. The lab receives a sample that does not describe this tumour — and nothing about the hit rate reveals that.",
+      "But the tissue is not representative of the tumour as a whole. One of the three sections is barely touched, sometimes not sampled at all. A pathologist receives tissue that does not describe this tumour — and nothing in the hit rate reveals that.",
     stage: "baseline",
     overlay: "baseline",
   },
@@ -58,7 +58,7 @@ export const STEPS: Step[] = [
     number: "04",
     title: "The model replans, on this computer",
     narration:
-      "Now the tumour's structure — just the sizes of the three parts, no image and no patient details — goes to Gemma, an AI model running on this machine. Nothing is sent to the internet. It decides how to spread the same number of passes.",
+      "Now the tumour's structure — just the sizes of the three sections, no image and no patient details — goes to Gemma, an AI model running on this machine. Nothing is sent to the internet. It decides how to spread the same number of passes.",
     followUp:
       "The simulation re-runs on its plan. Same tumour, same number of passes, same needle — the only thing that changed is where they are aimed.",
     stage: "stratified",

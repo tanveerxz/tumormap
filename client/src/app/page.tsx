@@ -125,6 +125,14 @@ export default function Home() {
 
   const modelRan = plan?.strategy.modelRan ?? false;
 
+  // Results belong only to steps where a biopsy has actually been simulated.
+  // The volume step introduces the anatomy and must not pre-empt the finding
+  // by showing baseline numbers before the baseline has been run.
+  const showResults =
+    current.stage === "baseline" ||
+    current.stage === "stratified" ||
+    current.stage === "compare";
+
   return (
     <>
       <nav className="scroll-edge glass sticky top-0 z-30">
@@ -419,12 +427,9 @@ export default function Home() {
             )}
 
             {/* Metrics appear once there is something to compare. */}
-            {run && baseline && stratified && current.stage !== "case" && (
+            {run && baseline && stratified && showResults && (
               <>
-                {(current.stage === "baseline" ||
-                  current.stage === "stratified" ||
-                  current.stage === "compare") && (
-                  <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-3">
                     {(current.stage === "compare"
                       ? ([
                           ["Representativeness", "representativeness", stratified.representativeness, run.delta.representativeness],
@@ -464,9 +469,8 @@ export default function Home() {
                         deltaLabel={delta !== undefined ? pp(delta as number) : undefined}
                         pending={pending}
                       />
-                    ))}
-                  </div>
-                )}
+                  ))}
+                </div>
 
                 <div
                   className={

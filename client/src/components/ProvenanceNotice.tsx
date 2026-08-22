@@ -22,11 +22,12 @@ export default function ProvenanceNotice({ provenance }: { provenance?: Provenan
         <div className="space-y-2.5">
           <p className="caption text-ink-secondary">
             <strong className="font-semibold text-ink-primary">
-              Real de-identified research imaging.
+              Source of the images
             </strong>{" "}
-            The scans and segmentation come from a public research dataset, not a
-            phantom and not a live clinical case. They are used here to demonstrate a
-            method. This is a research prototype, not a validated medical device.
+            The scan used here has been taken from the OpenNeuro dataset of processed
+            MRI images of patients with glioblastomas. This dataset has already been
+            processed and segmented. It is used to demonstrate a method — this is a
+            research prototype, not a validated medical device.
           </p>
           <p className="caption text-ink-secondary">
             <strong className="font-semibold text-ink-primary">

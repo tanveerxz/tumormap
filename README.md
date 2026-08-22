@@ -1,4 +1,4 @@
-# 🧠 TumourMap — Privacy-Preserving Virtual Biopsy AI
+# 🧠 TumourMap - Privacy-Preserving Virtual Biopsy AI
 
 > **Submission for Hackathon Track 2: BEST USE OF GEMMA**  
 > *Offline-Capable, Privacy-Preserving Edge AI & Stereotactic Virtual Biopsy Simulator for Neuro-Oncology.*
@@ -8,11 +8,12 @@
 ## 🏆 Track 2 Alignment & Value Proposition
 
 | Hackathon Criterion | How TumourMap Delivers |
-| :--- | :--- |
-| **Gemma Open Weights** | Powered by **Gemma 2 (2B Parameters)** running locally on hardware via **Ollama**. |
-| **Privacy-Preserving (Zero Egress)** | Patient brain MRI scans and voxel coordinates are processed **100% locally** (loopback `127.0.0.1`). **0 bytes** transmitted to the cloud, ensuring full HIPAA and GDPR compliance for clinical surgical suites. |
-| **Domain Problem (Neuro-Oncology)** | Solves the critical problem of **Intratumour Heterogeneity**: standard needle biopsies sample $<0.1\%$ of tumour volume, often hitting only the dead necrotic core and missing the molecularly distinct active proliferative rim. |
-| **Edge Optimization** | Compact ~1.6 GB VRAM footprint, running in real-time on standard laptops and clinical workstation carts. |
+|---|---|
+| **Gemma Open Weights** | Uses **Gemma 2 (2B)** locally through Ollama for privacy-conscious spatial analysis. |
+| **Privacy-Preserving Architecture** | Designed around local processing so sensitive image-derived information can remain on the local machine. |
+| **Domain Problem** | Explores **intratumour heterogeneity** and the challenge of obtaining representative samples from spatially heterogeneous tumours. |
+| **Edge AI** | Uses a compact Gemma model designed for local execution on accessible hardware. |
+| **Quantitative Evaluation** | Compares sampling strategies using simulated trajectories and metrics including Shannon Diversity and Pielou's Evenness. |
 
 ---
 
@@ -23,7 +24,7 @@
    - **Region 2: Peritumoral Infiltration / Edema (ED)** — Migrating glioma cells in brain parenchyma (hyperintense on T2/FLAIR).
    - **Region 3: Active Enhancing Tumour Rim (ET)** — Hypervascular, highly proliferating cells with blood-brain barrier breakdown (enhancing on T1+Gd).
 2. **The Sampling Trap**: A stereotactic needle biopsy takes tiny 10–20mm tissue cores. If the neurosurgeon aims for the geometric centroid, **over 70% of the sample is necrotic debris**, causing false-negative next-generation sequencing (NGS) and failed targeted therapies.
-3. **TumourMap Solution**: TumourMap simulates thousands of 3D virtual needle biopsies across multi-parametric MRI (T1, T2, FLAIR, T1+contrast), quantifies heterogeneity capture using **Shannon Diversity ($H'$) and Pielou's Evenness ($J'$)**, and leverages **local Gemma** to audit spatial blind spots and formulate multi-target stereotactic protocols.
+3. **TumourMap Solution**: TumourMap creates a computational environment for evaluating thousands of simulated 3D sampling trajectories across multi-parametric MRI representations (T1, T2, FLAIR, and T1+contrast). It quantifies how well different strategies capture heterogeneous tumour compartments using **Shannon Diversity (H′)** and **Pielou's Evenness (J′)**. Local **Gemma** is used to analyse structured spatial information and provide reasoning over potential sampling strategies. The system is designed as a **research prototype** and does not provide patient-specific clinical recommendations.
 
 ---
 
