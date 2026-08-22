@@ -15,14 +15,20 @@ Two rules this module holds to:
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
 import requests
 
-OLLAMA_URL = "http://127.0.0.1:11434"
-DEFAULT_MODEL = "gemma2:2b"
-TIMEOUT = 60.0
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+
+# Gemma 4 (Apache 2.0, April 2026). The E-series are the edge builds — E4B is
+# the larger of the two and still runs comfortably on a laptop, which is the
+# whole point of keeping inference local. Override with GEMMA_MODEL to try
+# another size (e2b for lower memory, 12b/26b/31b on a workstation).
+DEFAULT_MODEL = os.environ.get("GEMMA_MODEL", "gemma4:e4b")
+TIMEOUT = float(os.environ.get("GEMMA_TIMEOUT", "300"))
 
 SYSTEM = (
     "You are a neuro-oncology sampling assistant running locally on open weights. "
@@ -39,7 +45,14 @@ def is_available(model: str = DEFAULT_MODEL) -> dict[str, Any]:
         if response.status_code != 200:
             return {"available": False, "reason": f"Ollama returned {response.status_code}"}
         names = [m.get("name", "") for m in response.json().get("models", [])]
-        pulled = any(n == model or n.startswith(model.split(":")[0]) for n in names)
+        # Require the exact tag. Only when the caller names a bare family
+        # ("gemma4") does any tag within it count. Matching on the family
+        # prefix unconditionally would let a stale gemma2 pull satisfy a
+        # gemma4 requirement — precisely the drift worth catching.
+        if ":" in model:
+            pulled = model in names
+        else:
+            pulled = any(n.split(":")[0] == model for n in names)
         return {
             "available": pulled,
             "daemon": True,
@@ -67,6 +80,13 @@ def _generate(
                 "prompt": prompt,
                 "system": SYSTEM,
                 "stream": False,
+                # Gemma 4 is a reasoner and thinks before answering. Left on,
+                # it spends the whole token budget on its reasoning trace and
+                # returns an EMPTY response — the allocation call was silently
+                # falling back to the deterministic plan every time. Neither
+                # task here benefits from a visible reasoning trace, so it is
+                # off: the JSON arrives in ~20 tokens instead of ~257.
+                "think": False,
                 "options": {"temperature": temperature, "num_predict": max_tokens},
             },
             timeout=TIMEOUT,
@@ -143,7 +163,7 @@ Reply with ONLY a JSON object mapping compartment id to a pass count, using the
 ids {ids}. Aim for the counts to sum to about {n_passes}.
 Example: {{"NCR": 4, "ED": 5, "ET": 3}}"""
 
-    raw = _generate(prompt, model=model, max_tokens=64)
+    raw = _generate(prompt, model=model, max_tokens=192)
     if raw:
         match = re.search(r"\{[^{}]*\}", raw)
         if match:

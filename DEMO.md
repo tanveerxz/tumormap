@@ -11,7 +11,7 @@ Target length: **2:30–3:00**. Times below are cumulative.
 ```bash
 # 1. model  (leave running)
 ollama serve
-ollama pull gemma2:2b          # ~1.6 GB, once
+ollama pull gemma4:e4b         # once
 
 # 2. api    (leave running)
 .venv/Scripts/python -m uvicorn backend.api:app --port 8000
@@ -82,7 +82,7 @@ This is the beat the whole demo exists for. Don't rush it.
 ## 01:35 — Step 05 · Gemma replans, on device
 
 > "So we hand the structure — just the compartment volumes and shares, no
-> image, no identifiers — to Gemma 2 running locally through Ollama. Nothing
+> image, no identifiers — to Gemma 4 running locally through Ollama. Nothing
 > leaves the machine. It comes back with how it would spend the same
 > twenty-four passes."
 

@@ -287,7 +287,7 @@ export default function Home() {
                       <p className="caption mt-2.5 text-ink-muted">
                         {planPending
                           ? "Running locally through Ollama. Nothing leaves this machine."
-                          : "Runs gemma2:2b on device. Takes a few seconds."}
+                          : "Runs Gemma 4 on device. Takes a few seconds."}
                       </p>
                     </>
                   )}

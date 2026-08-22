@@ -19,7 +19,7 @@ from backend.gemma_local import (
 
 app = FastAPI(
     title="TumourMap — Privacy-Preserving Virtual Biopsy Optimization API",
-    description="Offline-capable edge AI clinical simulator powered by Gemma 2 open weights.",
+    description="Offline-capable edge AI clinical simulator powered by Gemma 4 open weights.",
     version="2.0.0"
 )
 

@@ -107,7 +107,7 @@ export interface StrategyProposal {
   /**
    * True when the model's counts did not sum to the budget and were rescaled.
    * Surfaced so the UI never implies the model did arithmetic it did not do —
-   * gemma2:2b gives a sound ratio but cannot hit an exact integer total.
+   * a small edge model gives a sound ratio but may not hit an exact total.
    */
   rescaled?: boolean;
   requestedTotal?: number;

@@ -18,7 +18,7 @@ const STACK = [
   "FastAPI",
   "NumPy",
   "nibabel",
-  "Gemma 2 · 2B",
+  "Gemma 4 · E4B",
   "Ollama",
 ];
 

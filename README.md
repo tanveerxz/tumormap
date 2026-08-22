@@ -9,7 +9,7 @@
 
 | Hackathon Criterion | How TumourMap Delivers |
 |---|---|
-| **Gemma Open Weights** | Uses **Gemma 2 (2B)** locally through Ollama for privacy-conscious spatial analysis. |
+| **Gemma Open Weights** | Uses **Gemma 4 (E4B edge build)** locally through Ollama for privacy-conscious spatial analysis. |
 | **Privacy-Preserving Architecture** | Designed around local processing so sensitive image-derived information can remain on the local machine. |
 | **Domain Problem** | Explores **intratumour heterogeneity** and the challenge of obtaining representative samples from spatially heterogeneous tumours. |
 | **Edge AI** | Uses a compact Gemma model designed for local execution on accessible hardware. |
@@ -62,9 +62,9 @@ The current hackathon prototype uses **synthetic or research data** and should n
 
 ### 1. Prerequisites
 - Python 3.10+
-- [Ollama](https://ollama.com/) with `gemma2:2b`:
+- [Ollama](https://ollama.com/) with `gemma4:e4b`:
   ```bash
-  ollama pull gemma2:2b
+  ollama pull gemma4:e4b
   ```
 
 ### 2. Install Dependencies
@@ -101,7 +101,7 @@ Interactive API documentation available at `http://localhost:8000/docs`.
   - *Gemma-Optimized Multi-Trajectory Biopsy* ($J' \approx 0.92$, **+80% increase in representativeness**)
 - **Monte Carlo Simulator**: 100+ stochastic surgical passes quantifying empirical distributions of Shannon diversity.
 
-### 3. 🧠 Offline Gemma 2 Clinical Copilot & Live Chat
+### 3. 🧠 Offline Gemma 4 Clinical Copilot & Live Chat
 - **Spatial Heterogeneity Audit**: Gemma evaluates 3D subregions and explains diagnostic blind spots.
 - **Stereotactic Trajectory Protocol**: Gemma generates cranial burr-hole coordinates, needle angles, and target depths.
 - **Interactive Clinical Q&A**: Zero-egress conversational AI for neurosurgeons and oncologists.
@@ -130,7 +130,7 @@ $$J' = \frac{H'}{\ln(S)}$$
    > *"In neuro-oncology, a biopsy needle takes a tiny core from a massive brain tumour. If you aim for the center, you hit dead necrotic tissue. The patient's genetic report comes back negative for actionable mutations—even though millimeters away, aggressive cancer cells are proliferating. Brain MRI scans contain sensitive patient facial and neural data, so surgeons cannot send these images to cloud AI models."*
 
 2. **The Solution & Gemma Edge AI (0:45 - 1:45)**:
-   > *"Enter **TumourMap**. Running completely offline on local hardware with **Google's Gemma 2 open weights**, TumourMap turns multi-parametric MRI into a 3D virtual biopsy proving ground. We simulate thousands of virtual needle trajectories and measure spatial heterogeneity capture with the Shannon Diversity Index."*
+   > *"Enter **TumourMap**. Running completely offline on local hardware with **Google's Gemma 4 open weights**, TumourMap turns multi-parametric MRI into a 3D virtual biopsy proving ground. We simulate thousands of virtual needle trajectories and measure spatial heterogeneity capture with the Shannon Diversity Index."*
 
 3. **Live Demonstration (1:45 - 2:30)**:
    > *"Show Tab 1: 3D multi-modal MRI and the 3 subregions (Necrosis, Edema, Enhancing Rim).  
@@ -153,7 +153,7 @@ tumormap/
 ├── backend/
 │   ├── imaging.py             # Multi-modal MRI processor & 3D voxel volumetrics
 │   ├── simulation.py          # 3D Stereotactic Virtual Biopsy Simulator & Monte Carlo
-│   ├── gemma_local.py         # Offline Gemma 2 AI Agent (Ollama runtime)
+│   ├── gemma.py               # Offline Gemma 4 agent (Ollama runtime)
 │   └── main.py                # FastAPI REST endpoints
 └── sub-NSK46/                 # Patient NIfTI MRI dataset (MNI152 Space)
     └── anat/
