@@ -28,6 +28,36 @@
 
 ---
 
+## 🛡️ Research Scope & Safety
+
+TumourMap is a **computational research prototype** for studying sampling strategies under simulated tumour heterogeneity.
+
+The current system is designed to:
+
+- Generate or analyse synthetic tumour environments.
+- Simulate virtual biopsy trajectories.
+- Compare different sampling strategies.
+- Quantify spatial and biological compartment coverage.
+- Explore how local Gemma reasoning can support computational analysis.
+
+TumourMap does **not**:
+
+- Diagnose cancer.
+- Determine whether a patient requires a biopsy.
+- Provide patient-specific biopsy recommendations.
+- Replace clinical judgement or medical professionals.
+- Claim clinical efficacy or regulatory approval.
+
+### Data Privacy
+
+The prototype is designed around a **local-first architecture**. Sensitive image-derived information can be processed locally, with structured representations used for downstream reasoning where appropriate.
+
+The current hackathon prototype uses **synthetic or research data** and should not be interpreted as a clinically validated privacy or regulatory compliance solution.
+
+> **Important:** TumourMap is a research prototype and is not a medical device or clinical decision-support system.
+
+---
+
 ## 🚀 Quickstart & How to Run
 
 ### 1. Prerequisites
