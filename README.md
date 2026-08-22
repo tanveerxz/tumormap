@@ -1,4 +1,4 @@
-# 🧠 TumourMap — Privacy-Preserving Virtual Biopsy AI
+# 🧠 TumourMap - Privacy-Preserving Virtual Biopsy AI
 
 > **Submission for Hackathon Track 2: BEST USE OF GEMMA**  
 > *Offline-Capable, Privacy-Preserving Edge AI & Stereotactic Virtual Biopsy Simulator for Neuro-Oncology.*
@@ -8,11 +8,12 @@
 ## 🏆 Track 2 Alignment & Value Proposition
 
 | Hackathon Criterion | How TumourMap Delivers |
-| :--- | :--- |
-| **Gemma Open Weights** | Powered by **Gemma 2 (2B Parameters)** running locally on hardware via **Ollama**. |
-| **Privacy-Preserving (Zero Egress)** | Patient brain MRI scans and voxel coordinates are processed **100% locally** (loopback `127.0.0.1`). **0 bytes** transmitted to the cloud, ensuring full HIPAA and GDPR compliance for clinical surgical suites. |
-| **Domain Problem (Neuro-Oncology)** | Solves the critical problem of **Intratumour Heterogeneity**: standard needle biopsies sample $<0.1\%$ of tumour volume, often hitting only the dead necrotic core and missing the molecularly distinct active proliferative rim. |
-| **Edge Optimization** | Compact ~1.6 GB VRAM footprint, running in real-time on standard laptops and clinical workstation carts. |
+|---|---|
+| **Gemma Open Weights** | Uses **Gemma 2 (2B)** locally through Ollama for privacy-conscious spatial analysis. |
+| **Privacy-Preserving Architecture** | Designed around local processing so sensitive image-derived information can remain on the local machine. |
+| **Domain Problem** | Explores **intratumour heterogeneity** and the challenge of obtaining representative samples from spatially heterogeneous tumours. |
+| **Edge AI** | Uses a compact Gemma model designed for local execution on accessible hardware. |
+| **Quantitative Evaluation** | Compares sampling strategies using simulated trajectories and metrics including Shannon Diversity and Pielou's Evenness. |
 
 ---
 
