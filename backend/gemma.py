@@ -50,7 +50,15 @@ def is_available(model: str = DEFAULT_MODEL) -> dict[str, Any]:
         return {"available": False, "daemon": False, "reason": f"Ollama unreachable: {exc}"}
 
 
-def _generate(prompt: str, model: str = DEFAULT_MODEL, temperature: float = 0.2) -> str | None:
+def _generate(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    temperature: float = 0.2,
+    max_tokens: int = 400,
+) -> str | None:
+    """Generate locally. `max_tokens` is sized per call — a JSON allocation
+    needs a few dozen tokens, and letting it run to a prose-length budget was
+    costing tens of seconds per request for nothing."""
     try:
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
@@ -59,7 +67,7 @@ def _generate(prompt: str, model: str = DEFAULT_MODEL, temperature: float = 0.2)
                 "prompt": prompt,
                 "system": SYSTEM,
                 "stream": False,
-                "options": {"temperature": temperature, "num_predict": 600},
+                "options": {"temperature": temperature, "num_predict": max_tokens},
             },
             timeout=TIMEOUT,
         )
@@ -135,7 +143,7 @@ Reply with ONLY a JSON object mapping compartment id to a pass count, using the
 ids {ids}. Aim for the counts to sum to about {n_passes}.
 Example: {{"NCR": 4, "ED": 5, "ET": 3}}"""
 
-    raw = _generate(prompt, model=model)
+    raw = _generate(prompt, model=model, max_tokens=64)
     if raw:
         match = re.search(r"\{[^{}]*\}", raw)
         if match:
@@ -201,7 +209,7 @@ In 3 short paragraphs: what the centroid strategy misses and why that matters
 biologically; what changed under stratification; and one honest limitation of
 this simulation. Describe the simulation, not any patient."""
 
-    raw = _generate(prompt, model=model, temperature=0.3)
+    raw = _generate(prompt, model=model, temperature=0.3, max_tokens=320)
     if raw:
         return {"text": raw, "modelRan": True, "model": model}
 

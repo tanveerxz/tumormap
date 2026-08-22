@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AnimatedNumber from "@/components/AnimatedNumber";
+import InfoTip from "@/components/InfoTip";
 import MriPanel from "@/components/MriPanel";
 import ProvenanceNotice from "@/components/ProvenanceNotice";
 import RegionBalance from "@/components/RegionBalance";
@@ -9,7 +10,7 @@ import RegionLegend from "@/components/RegionLegend";
 import StatTile from "@/components/StatTile";
 import ThemeToggle from "@/components/ThemeToggle";
 import TumourVolume3D from "@/components/TumourVolume3D";
-import { fetchCase, fetchHealth, fetchPointCloud, runSimulation } from "@/lib/api";
+import { fetchCase, fetchHealth, fetchPointCloud, requestPlan, runSimulation } from "@/lib/api";
 import { pct, pp } from "@/lib/format";
 import { STEPS } from "@/lib/steps";
 import { useTheme } from "@/lib/useTheme";
@@ -32,6 +33,11 @@ export default function Home() {
 
   const [pending, setPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Gemma's plan is fetched once, on demand, and then reused across pass
+  // counts so the model never sits in the path of a slider drag.
+  const [plan, setPlan] = useState<Pick<RunResponse, "strategy" | "narrative"> | null>(null);
+  const [planPending, setPlanPending] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const current = STEPS[step];
 
@@ -60,23 +66,41 @@ export default function Home() {
     return () => controller.abort();
   }, []);
 
-  const execute = useCallback(async (nextPasses: number) => {
-    setPending(true);
-    try {
-      setRun(await runSimulation(nextPasses));
-      setError(null);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Simulation failed");
-    } finally {
-      setPending(false);
-    }
-  }, []);
-
+  // Fast, deterministic run. Stale requests are aborted rather than allowed
+  // to land out of order, and a failure keeps the last good render on screen.
   useEffect(() => {
-    const timer = setTimeout(() => void execute(passes), 200);
-    return () => clearTimeout(timer);
-  }, [passes, execute]);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setPending(true);
+      runSimulation(passes, plan?.strategy.allocation, controller.signal)
+        .then((next) => {
+          setRun(next);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          setError(err instanceof Error ? err.message : "Simulation failed");
+        })
+        .finally(() => setPending(false));
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [passes, plan]);
+
+  const askGemma = useCallback(async () => {
+    setPlanPending(true);
+    setPlanError(null);
+    try {
+      setPlan(await requestPlan(passes));
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : "Gemma request failed");
+    } finally {
+      setPlanPending(false);
+    }
+  }, [passes]);
 
   // Arrow keys drive the walkthrough — one hand on the keyboard while recording.
   useEffect(() => {
@@ -99,7 +123,7 @@ export default function Home() {
         ? stratified?.biopsyPasses
         : undefined;
 
-  const modelRan = run?.strategy.modelRan ?? false;
+  const modelRan = plan?.strategy.modelRan ?? false;
 
   return (
     <>
@@ -134,10 +158,11 @@ export default function Home() {
           </p>
           <h1 className="display-1 text-ink-primary">Where should a biopsy be taken?</h1>
           <p className="body-text mt-4 text-ink-secondary">
-            A needle samples a fraction of a percent of a tumour. This walks through
-            whether the <em>placement</em> of those passes decides if the tissue that
-            reaches the lab actually represents the mass — on real imaging, with a
-            local model doing the replanning.
+            When a tumour is biopsied, a needle removes a sliver — well under one
+            percent of it. If that sliver comes from the wrong part, the lab draws
+            conclusions about a tumour it never really saw. This walks through whether{" "}
+            <em>where</em> you aim changes that, using real scans and an AI model
+            running entirely on this computer.
           </p>
         </header>
 
@@ -204,8 +229,12 @@ export default function Home() {
             </ol>
 
             <div className="flex items-center gap-3">
-              <label htmlFor="passes" className="label-mono text-ink-muted">
+              <label
+                htmlFor="passes"
+                className="label-mono flex items-center gap-1.5 text-ink-muted"
+              >
                 Passes
+                <InfoTip term="passes" badge />
               </label>
               <input
                 id="passes"
@@ -234,44 +263,87 @@ export default function Home() {
               <h2 className="title-1 mb-3 text-ink-primary">{current.title}</h2>
               <p className="body-text text-ink-secondary">{current.narration}</p>
 
-              {current.id === "gemma" && run && (
+              {current.id === "gemma" && (
                 <div className="mt-4 border-t border-grid pt-4">
-                  <div className="label-mono mb-2 flex items-center gap-2 text-ink-muted">
-                    Allocation
-                    <span
-                      className="rounded-full px-2 py-0.5"
-                      style={{
-                        background: modelRan ? "var(--surface-2)" : "transparent",
-                        color: modelRan ? "var(--delta-good)" : "var(--accent)",
-                      }}
-                    >
-                      {modelRan ? "from Gemma" : "fallback"}
-                    </span>
-                  </div>
-                  <ul className="mono space-y-1 text-xs text-ink-secondary">
-                    {Object.entries(run.strategy.allocation).map(([id, count]) => (
-                      <li key={id} className="flex justify-between tabular">
-                        <span>{id}</span>
-                        <span className="text-ink-primary">{count} passes</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {!modelRan && (
-                    <p className="caption mt-2.5 text-ink-muted">
-                      Gemma did not run, so this is volume-share apportionment, not a
-                      model decision. {run.strategy.reason}
+                  {!plan && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void askGemma()}
+                        disabled={planPending}
+                        className="press w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-60"
+                      >
+                        {planPending ? "Gemma is planning…" : "Ask Gemma to replan"}
+                      </button>
+                      <p className="caption mt-2.5 text-ink-muted">
+                        {planPending
+                          ? "Running locally through Ollama. Nothing leaves this machine."
+                          : "Runs gemma2:2b on device. Takes a few seconds."}
+                      </p>
+                    </>
+                  )}
+
+                  {planError && (
+                    <p className="caption mt-2.5" style={{ color: "var(--accent)" }}>
+                      {planError}
                     </p>
+                  )}
+
+                  {plan && (
+                    <>
+                      <div className="label-mono mb-2 flex flex-wrap items-center gap-2 text-ink-muted">
+                        Allocation
+                        <span
+                          className="rounded-full bg-surface-2 px-2 py-0.5"
+                          style={{
+                            color: modelRan ? "var(--delta-good)" : "var(--accent)",
+                          }}
+                        >
+                          {modelRan ? "from Gemma" : "fallback"}
+                        </span>
+                      </div>
+                      <ul className="mono space-y-1 text-xs text-ink-secondary">
+                        {Object.entries(plan.strategy.allocation).map(([id, count]) => (
+                          <li key={id} className="flex justify-between tabular">
+                            <span>{id}</span>
+                            <span className="text-ink-primary">{count} passes</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {plan.strategy.rescaled && (
+                        <p className="caption mt-2.5 text-ink-muted">
+                          Gemma returned the weighting{" "}
+                          {Object.values(plan.strategy.weights ?? {}).join(" / ")} (
+                          {plan.strategy.requestedTotal} passes); rescaled to {passes}.
+                          The ratio is the model&apos;s, the arithmetic is not.
+                        </p>
+                      )}
+                      {!modelRan && (
+                        <p className="caption mt-2.5 text-ink-muted">
+                          Gemma did not run, so this is volume-share apportionment, not a
+                          model decision. {plan.strategy.reason}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void askGemma()}
+                        disabled={planPending}
+                        className="press mt-3 text-xs text-ink-muted underline underline-offset-2 hover:text-ink-primary"
+                      >
+                        {planPending ? "asking…" : "ask again"}
+                      </button>
+                    </>
                   )}
                 </div>
               )}
 
-              {current.id === "verdict" && run?.narrative && (
+              {current.id === "verdict" && plan?.narrative && (
                 <div className="mt-4 border-t border-grid pt-4">
                   <div className="label-mono mb-2 text-ink-muted">
-                    {run.narrative.modelRan ? "Gemma’s reading" : "Deterministic summary"}
+                    {plan.narrative.modelRan ? "Gemma’s reading" : "Deterministic summary"}
                   </div>
                   <p className="caption whitespace-pre-line text-ink-secondary">
-                    {run.narrative.text}
+                    {plan.narrative.text}
                   </p>
                 </div>
               )}
@@ -350,35 +422,39 @@ export default function Home() {
                   <div className="grid gap-4 sm:grid-cols-3">
                     {(current.stage === "compare"
                       ? ([
-                          ["Representativeness", stratified.representativeness, run.delta.representativeness],
-                          ["Evenness J′", stratified.evenness, run.delta.evenness],
-                          ["Hit rate", stratified.hitRate, run.delta.hitRate],
+                          ["Representativeness", "representativeness", stratified.representativeness, run.delta.representativeness],
+                          ["Evenness", "evenness", stratified.evenness, run.delta.evenness],
+                          ["Hit rate", "hit rate", stratified.hitRate, run.delta.hitRate],
                         ] as const)
                       : ([
                           [
                             "Representativeness",
+                            "representativeness",
                             current.stage === "baseline"
                               ? baseline.representativeness
                               : stratified.representativeness,
                             undefined,
                           ],
                           [
-                            "Evenness J′",
+                            "Evenness",
+                            "evenness",
                             current.stage === "baseline" ? baseline.evenness : stratified.evenness,
                             undefined,
                           ],
                           [
                             "Hit rate",
+                            "hit rate",
                             current.stage === "baseline" ? baseline.hitRate : stratified.hitRate,
                             undefined,
                           ],
                         ] as const)
-                    ).map(([label, value, delta]) => (
+                    ).map(([label, term, value, delta]) => (
                       <StatTile
                         key={label}
                         label={label}
+                        term={term}
                         value={value as number}
-                        format={(v) => (label === "Evenness J′" ? v.toFixed(2) : pct(v))}
+                        format={(v) => (label === "Evenness" ? v.toFixed(2) : pct(v))}
                         delta={delta as number | undefined}
                         deltaLabel={delta !== undefined ? pp(delta as number) : undefined}
                         pending={pending}
@@ -437,11 +513,17 @@ export default function Home() {
                   <div className="panel rounded-2xl p-5 ring-1 ring-hairline">
                     <RegionLegend features={caseData?.features} showReference />
                     <p className="caption mt-3 text-ink-secondary">
-                      Representativeness is 1 − the total variation distance between the
-                      sampled compartment mix and the true volumetric mix. Pielou&apos;s
-                      J′ asks whether the sample is <em>balanced</em>; representativeness
-                      asks whether it matches <em>this</em> tumour. They disagree by
-                      design, so both are reported.
+                      <strong className="font-semibold text-ink-primary">
+                        How to read this:
+                      </strong>{" "}
+                      the bars show where the collected tissue came from; the thin
+                      vertical line marks how big that part of the tumour actually is. A
+                      bar that stops short of its line means that part was
+                      under-sampled. <InfoTip term="evenness">Evenness</InfoTip> asks
+                      whether the sample is spread out;{" "}
+                      <InfoTip term="representativeness">representativeness</InfoTip>{" "}
+                      asks whether it matches <em>this</em> tumour. They can disagree, so
+                      both are shown.
                     </p>
                   </div>
                 )}

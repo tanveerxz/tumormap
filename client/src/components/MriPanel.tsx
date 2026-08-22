@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import InfoTip from "./InfoTip";
 import { fetchSlice } from "@/lib/api";
 import type { MriSlice } from "@/lib/types";
 
 const MODALITIES = [
-  { id: "T1_post", label: "T1 + Gd" },
-  { id: "T1_pre", label: "T1" },
-  { id: "T2", label: "T2" },
-  { id: "FLAIR", label: "FLAIR" },
+  { id: "T1_post", label: "T1 + Gd", term: "T1 + Gd", blurb: "Shows the active tumour" },
+  { id: "T1_pre", label: "T1", term: "T1", blurb: "The plain 'before dye' scan" },
+  { id: "T2", label: "T2", term: "T2", blurb: "Fluid and swelling show bright" },
+  { id: "FLAIR", label: "FLAIR", term: "FLAIR", blurb: "Invaded tissue stands out" },
 ];
 
 /**
@@ -25,6 +26,11 @@ export default function MriPanel() {
   const [slice, setSlice] = useState<MriSlice | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Derived, not stored: the panel is loading whenever what we're showing is
+  // not what was asked for. This is what stops a scan switch from silently
+  // displaying the previous sequence as though it were the new one.
+  const loading = !error && (!slice || slice.modality !== modality);
+
   useEffect(() => {
     const controller = new AbortController();
     fetchSlice(modality, "axial", controller.signal)
@@ -34,7 +40,7 @@ export default function MriPanel() {
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load slice");
+        setError(err instanceof Error ? err.message : "Failed to load scan");
       });
     return () => controller.abort();
   }, [modality]);
@@ -79,53 +85,88 @@ export default function MriPanel() {
     ctx.drawImage(buffer, (size - w) / 2, (size - h) / 2, w, h);
   }, [slice]);
 
+  const active = MODALITIES.find((m) => m.id === modality);
+
   return (
     <div>
+      <p className="caption mb-3 text-ink-secondary">
+        The same slice of the same brain, photographed four ways. Each{" "}
+        <InfoTip term="mri">tuning</InfoTip> makes different tissue stand out — which is
+        how the tumour&apos;s parts are told apart.
+      </p>
+
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {MODALITIES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setModality(m.id)}
-            className="press label-mono rounded-lg px-2.5 py-1.5 ring-1 ring-hairline"
-            style={{
-              background: modality === m.id ? "var(--brand)" : "var(--surface-2)",
-              color: modality === m.id ? "var(--brand-ink)" : "var(--ink-secondary)",
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
+        {MODALITIES.map((m) => {
+          const isActive = modality === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setModality(m.id)}
+              title={m.blurb}
+              aria-pressed={isActive}
+              className="press label-mono rounded-lg px-2.5 py-1.5 ring-1 ring-hairline"
+              style={{
+                background: isActive ? "var(--brand)" : "var(--surface-2)",
+                color: isActive ? "var(--brand-ink)" : "var(--ink-secondary)",
+              }}
+            >
+              {m.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="relative">
-        <canvas
-          ref={canvasRef}
-          className="block aspect-square w-full rounded-xl ring-1 ring-hairline"
-          style={{ background: "#000" }}
-        />
-        {!slice && !error && (
-          <div className="caption absolute inset-0 grid place-items-center text-ink-muted">
-            Loading scan…
+        {/* Keyed on the loaded modality so React remounts it on every swap,
+            which restarts the entrance animation. */}
+        <div key={slice?.modality ?? "empty"} className={loading ? undefined : "scan-in"}>
+          <canvas
+            ref={canvasRef}
+            className="block aspect-square w-full rounded-xl ring-1 ring-hairline transition-opacity duration-200"
+            style={{ background: "#000", opacity: loading ? 0.25 : 1 }}
+          />
+        </div>
+
+        {/* Explicit loading state. Without it a scan switch just swaps pixels
+            and reads as though nothing happened. */}
+        {loading && (
+          <div className="absolute inset-0 grid place-items-center rounded-xl">
+            <div className="flex flex-col items-center gap-2.5">
+              <span
+                aria-hidden
+                className="block h-6 w-6 animate-spin rounded-full border-2 border-transparent"
+                style={{
+                  borderTopColor: "var(--brand)",
+                  borderRightColor: "var(--brand)",
+                }}
+              />
+              <span className="label-mono text-ink-secondary" role="status">
+                Loading {active?.label ?? modality}
+              </span>
+            </div>
           </div>
         )}
+
         {error && (
-          <div className="caption absolute inset-0 grid place-items-center px-4 text-center text-ink-muted">
+          <div className="caption absolute inset-0 grid place-items-center rounded-xl px-4 text-center text-ink-muted">
             {error}
           </div>
         )}
       </div>
 
-      {slice && (
-        <p className="mono mt-2.5 text-xs text-ink-muted">
-          {slice.modality} · {slice.plane} · slice {slice.sliceIndex} · {slice.width}×
-          {slice.height} · {slice.space} space
+      {active && (
+        <p className="caption mt-2.5 text-ink-secondary">
+          <InfoTip term={active.term}>{active.label}</InfoTip> — {active.blurb}.
         </p>
       )}
-      <p className="caption mt-1.5 text-ink-muted">
-        Shown without a segmentation overlay — this scan and the mask are in different
-        coordinate spaces.
-      </p>
+
+      {slice && !loading && (
+        <p className="mono mt-1.5 text-xs text-ink-muted">
+          slice {slice.sliceIndex} · {slice.width}×{slice.height} ·{" "}
+          <InfoTip term="native space">native space</InfoTip>
+        </p>
+      )}
     </div>
   );
 }

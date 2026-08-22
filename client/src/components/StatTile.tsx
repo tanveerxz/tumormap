@@ -1,4 +1,5 @@
 import AnimatedNumber from "./AnimatedNumber";
+import InfoTip from "./InfoTip";
 import { direction } from "@/lib/format";
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   deltaLabel?: string;
   hint?: string;
   pending?: boolean;
+  /** Glossary key — adds a plain-English explainer beside the label. */
+  term?: string;
 }
 
 const ARROW = { up: "↑", down: "↓", flat: "→" } as const;
@@ -24,6 +27,7 @@ export default function StatTile({
   deltaLabel,
   hint,
   pending = false,
+  term,
 }: Props) {
   const dir = delta === undefined ? null : direction(delta);
 
@@ -32,7 +36,10 @@ export default function StatTile({
       className="panel rounded-2xl p-5 ring-1 ring-hairline transition-opacity duration-200"
       style={{ opacity: pending ? 0.6 : 1 }}
     >
-      <div className="label-mono text-ink-muted">{label}</div>
+      <div className="label-mono flex items-center gap-1.5 text-ink-muted">
+        {label}
+        {term && <InfoTip term={term} badge />}
+      </div>
 
       {/* Stat values stay in the sans with proportional figures — tabular-nums
           would make a number this size read loose. */}

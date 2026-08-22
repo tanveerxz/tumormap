@@ -46,19 +46,43 @@ export const fetchPointCloud = (maxPerRegion = 1400, signal?: AbortSignal) =>
 export const fetchSlice = (modality = "T1_post", plane = "axial", signal?: AbortSignal) =>
   get<MriSlice>(`/api/slice?modality=${modality}&plane=${plane}`, signal);
 
+/**
+ * Fast path: deterministic simulation, no model. Returns in well under a
+ * second, so it is safe to put behind a slider.
+ */
 export async function runSimulation(
   passes: number,
-  useGemma = true,
+  allocation?: Record<string, number>,
   signal?: AbortSignal,
 ): Promise<RunResponse> {
   const response = await fetch(`${API_BASE}/api/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ passes, useGemma }),
+    body: JSON.stringify({ passes, useGemma: false, allocation: allocation ?? null }),
     signal,
   });
   if (!response.ok) {
     throw new ApiError(`/api/run returned ${response.status}`, response.status);
   }
   return (await response.json()) as RunResponse;
+}
+
+/**
+ * Slow path: a local Gemma generation, tens of seconds. Called once, on
+ * demand, never on the input path.
+ */
+export async function requestPlan(
+  passes: number,
+  signal?: AbortSignal,
+): Promise<Pick<RunResponse, "strategy" | "narrative">> {
+  const response = await fetch(`${API_BASE}/api/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passes }),
+    signal,
+  });
+  if (!response.ok) {
+    throw new ApiError(`/api/plan returned ${response.status}`, response.status);
+  }
+  return (await response.json()) as Pick<RunResponse, "strategy" | "narrative">;
 }

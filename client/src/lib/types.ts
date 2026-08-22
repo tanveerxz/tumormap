@@ -102,6 +102,15 @@ export interface StrategyProposal {
   source: string;
   reason?: string;
   raw?: string;
+  /** The model's raw weighting, before rescaling to the pass budget. */
+  weights?: Record<string, number>;
+  /**
+   * True when the model's counts did not sum to the budget and were rescaled.
+   * Surfaced so the UI never implies the model did arithmetic it did not do —
+   * gemma2:2b gives a sound ratio but cannot hit an exact integer total.
+   */
+  rescaled?: boolean;
+  requestedTotal?: number;
 }
 
 export interface Narrative {

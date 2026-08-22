@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import InfoTip from "./InfoTip";
 import { pct } from "@/lib/format";
 import { REGION_VAR_BY_ID } from "@/lib/regionColors";
 import type { CaseFeatures, CompartmentId, StrategyResult } from "@/lib/types";
@@ -43,13 +44,17 @@ export default function RegionBalance({ features, result, pending = false }: Pro
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-xs"
                     style={{ background: REGION_VAR_BY_ID[region.id] }}
                   />
-                  {region.short}
+                  <InfoTip term={region.id}>{region.short}</InfoTip>
                 </span>
                 <span className="mono tabular text-ink-primary">
                   {pct(sampled)}
                   {missed && (
-                    <span className="ml-1.5 font-medium" style={{ color: "var(--accent)" }}>
-                      not sampled
+                    <span
+                      className="ml-1.5 font-medium"
+                      style={{ color: "var(--accent)" }}
+                      title="No tissue at all was collected from this part of the tumour"
+                    >
+                      never sampled
                     </span>
                   )}
                 </span>

@@ -51,7 +51,13 @@ app.add_middleware(
 
 class RunRequest(BaseModel):
     passes: int = 24
-    useGemma: bool = True
+    # Off by default: a Gemma pass costs two generations and tens of seconds,
+    # which must not sit in the path of a slider drag. The client asks for it
+    # explicitly at the replanning step.
+    useGemma: bool = False
+    # An allocation the caller already has (e.g. from a previous Gemma call),
+    # so re-running at a new pass count does not re-query the model.
+    allocation: dict[str, int] | None = None
 
 
 @app.get("/health")
@@ -120,18 +126,26 @@ def run(request: RunRequest) -> dict[str, Any]:
     arm runs on the model's plan. Otherwise the allocation falls back to volume
     share and `strategy.modelRan` is false.
     """
+    from backend.sampling import allocate_by_share
+
     features = mask_features()
 
-    if request.useGemma:
+    if request.allocation:
+        # Caller supplied a plan (typically Gemma's, from /api/plan).
+        proposal = {
+            "allocation": request.allocation,
+            "modelRan": True,
+            "model": gemma.DEFAULT_MODEL,
+            "source": "supplied allocation",
+        }
+    elif request.useGemma:
         proposal = gemma.propose_allocation(features, request.passes)
     else:
-        from backend.sampling import allocate_by_share
-
         proposal = {
             "allocation": allocate_by_share(request.passes),
             "modelRan": False,
             "model": None,
-            "source": "volume-share apportionment (model disabled)",
+            "source": "volume-share apportionment",
         }
 
     baseline = centroid_strategy(request.passes)
@@ -154,6 +168,30 @@ def run(request: RunRequest) -> dict[str, Any]:
         "narrative": narrative,
         "source": "server",
     }
+
+
+class PlanRequest(BaseModel):
+    passes: int = 24
+
+
+@app.post("/api/plan")
+def plan(request: PlanRequest) -> dict[str, Any]:
+    """
+    Ask Gemma for the pass allocation, and nothing else.
+
+    Split out from /api/run because it is the only slow call in the system —
+    a local generation takes tens of seconds, and the rest of the UI must not
+    wait behind it. The client fires this once, at the replanning step, and
+    feeds the result back into /api/run.
+    """
+    features = mask_features()
+    proposal = gemma.propose_allocation(features, request.passes)
+
+    baseline = centroid_strategy(request.passes)
+    guided = stratified_strategy(request.passes, allocation=proposal["allocation"])
+    narrative = gemma.explain(features, {"baseline": baseline, "stratified": guided})
+
+    return {"strategy": proposal, "narrative": narrative}
 
 
 @app.get("/api/monte-carlo")
