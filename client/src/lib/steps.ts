@@ -46,6 +46,7 @@ export const STEPS: Step[] = [
     narration:
       "The segmented MRI scan, along with the patient metadata (as seen in Step 1) has been sent to Gemma running locally through Ollama. The reason for the model running locally is to preserve patient privacy and reduce unecessarily exposing data to external servers, which poses a security risk. Gemma  takes this information and returns how it allocate the given number of total samples differently, optimising to more accurately represent the sample tissue proportions. Click the button below to start the pipeline.",
       stage: "volume",
+      overlay: "stratified",
   },
   {
     id: "verdict",

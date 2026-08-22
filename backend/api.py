@@ -29,7 +29,12 @@ from backend.data import (
     mri_slice,
     point_cloud,
 )
-from backend.sampling import centroid_strategy, monte_carlo, stratified_strategy
+from backend.sampling import (
+    allocate_by_share,
+    centroid_strategy,
+    monte_carlo,
+    stratified_strategy,
+)
 
 app = FastAPI(
     title="TumourMap — virtual biopsy sampling API",
@@ -126,8 +131,6 @@ def run(request: RunRequest) -> dict[str, Any]:
     arm runs on the model's plan. Otherwise the allocation falls back to volume
     share and `strategy.modelRan` is false.
     """
-    from backend.sampling import allocate_by_share
-
     features = mask_features()
 
     if request.allocation:
@@ -185,11 +188,32 @@ def plan(request: PlanRequest) -> dict[str, Any]:
     feeds the result back into /api/run.
     """
     features = mask_features()
-    proposal = gemma.propose_allocation(features, request.passes)
+    try:
+        proposal = gemma.propose_allocation(features, request.passes)
+    except Exception as exc:
+        proposal = {
+            "allocation": allocate_by_share(request.passes),
+            "modelRan": False,
+            "model": gemma.DEFAULT_MODEL,
+            "source": "volume-share apportionment",
+            "reason": f"Gemma planning failed: {exc}",
+        }
 
     baseline = centroid_strategy(request.passes)
     guided = stratified_strategy(request.passes, allocation=proposal["allocation"])
-    narrative = gemma.explain(features, {"baseline": baseline, "stratified": guided})
+    try:
+        narrative = gemma.explain(features, {"baseline": baseline, "stratified": guided})
+    except Exception as exc:
+        narrative = {
+            "text": (
+                "The plan was generated, but the explanatory text could not be "
+                "produced. The plotted sampling tracks and metrics still reflect "
+                "the returned allocation."
+            ),
+            "modelRan": False,
+            "model": gemma.DEFAULT_MODEL,
+            "reason": str(exc),
+        }
 
     return {"strategy": proposal, "narrative": narrative}
 

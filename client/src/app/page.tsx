@@ -120,7 +120,9 @@ export default function Home() {
     current.overlay === "baseline"
       ? baseline?.biopsyPasses
       : current.overlay === "stratified"
-        ? stratified?.biopsyPasses
+        ? plan && !pending
+          ? stratified?.biopsyPasses
+          : undefined
         : undefined;
 
   const modelRan = plan?.strategy.modelRan ?? false;
